@@ -1,0 +1,6 @@
+{
+  "name": "Amapati",
+  "description": "A simple social media app for small businesses to showcase their craft with photos, videos, and audio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

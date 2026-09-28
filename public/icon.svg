@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="brandGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="50%" stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </linearGradient>
+    <linearGradient id="innerGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- Background with smooth rounded squircle -->
+  <rect width="512" height="512" rx="128" fill="url(#brandGrad)"/>
+  <rect width="512" height="512" rx="128" fill="url(#innerGlow)"/>
+
+  <!-- Artisan Camera / Showcase Motif -->
+  <!-- Outer camera outline -->
+  <rect x="96" y="140" width="320" height="250" rx="48" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round"/>
+  <!-- Top notch flash / finder -->
+  <rect x="180" y="96" width="76" height="32" rx="12" fill="#ffffff"/>
+  <circle cx="340" cy="188" r="14" fill="#ffffff"/>
+  
+  <!-- Central Aperture / Artisanal Diamond Lens -->
+  <circle cx="256" cy="265" r="74" fill="none" stroke="#ffffff" stroke-width="26"/>
+  <circle cx="256" cy="265" r="32" fill="#ffffff"/>
+  <!-- Stylized "A" beam peak inside lens -->
+  <path d="M 226 350 L 256 180 L 286 350" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="238" y1="305" x2="274" y2="305" stroke="#ffffff" stroke-width="16" stroke-linecap="round"/>
+</svg>
