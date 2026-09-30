@@ -5,33 +5,40 @@ import {
   Edit3,
   LogOut,
   Plus,
-  Search,
   Settings,
+  Shield,
   ShieldCheck,
   User,
-  Users,
+  MessageCircle,
   ChevronDown,
+  Bell,
+  Sparkles,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PWAInstallButton } from '../pwa/PWAInstallButton';
+import { NotificationsModal } from '../modals/NotificationsModal';
 
 export const Navbar: React.FC = () => {
   const {
     currentUser,
     activeTab,
     setActiveTab,
-    openAuthModal,
     openCreateModal,
     setSettingsModalOpen,
     setAccountSwitcherModalOpen,
     setEditProfileModalOpen,
     setSupabaseModalOpen,
+    setOnboardingModalOpen,
     logout,
     viewProfile,
     isSupabaseLive,
+    unreadMessagesCount,
+    unreadNotificationsCount,
+    isStaff,
   } = useApp();
 
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isNotificationsModalOpen, setNotificationsModalOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-30 bg-stone-50/90 backdrop-blur-md border-b border-stone-200/80 transition-colors">
@@ -69,10 +76,65 @@ export const Navbar: React.FC = () => {
           >
             Discover
           </button>
+          <button
+            onClick={() => setActiveTab('messages')}
+            className={`pb-0.5 border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'messages'
+                ? 'border-orange-600 text-stone-900 font-bold'
+                : 'border-transparent hover:text-stone-900'
+            }`}
+          >
+            <span>Inbox</span>
+            {unreadMessagesCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-orange-600 text-white text-[10px]">
+                {unreadMessagesCount}
+              </span>
+            )}
+          </button>
+          {isStaff && (
+            <button
+              onClick={() => setActiveTab('admin')}
+              className={`pb-0.5 border-b-2 transition-colors flex items-center gap-1 ${
+                activeTab === 'admin'
+                  ? 'border-orange-600 text-stone-900 font-bold'
+                  : 'border-transparent text-stone-600 hover:text-stone-900'
+              }`}
+            >
+              <Shield className="w-3.5 h-3.5 text-orange-600" />
+              <span>Admin</span>
+            </button>
+          )}
         </nav>
 
         {/* Zone 3: Actions, Accounts & Auth */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Notifications Button */}
+          {currentUser && (
+            <button
+              onClick={() => setNotificationsModalOpen(true)}
+              className="relative p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition"
+              aria-label="Notifications"
+              title="Notifications"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadNotificationsCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-orange-600 ring-2 ring-white" />
+              )}
+            </button>
+          )}
+
+          {/* Messages Button (Mobile quick tap) */}
+          <button
+            onClick={() => setActiveTab('messages')}
+            className="sm:hidden relative p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition"
+            aria-label="Direct Messages"
+          >
+            <MessageCircle className="w-5 h-5" />
+            {unreadMessagesCount > 0 && (
+              <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-orange-600 ring-2 ring-white" />
+            )}
+          </button>
+
           {/* View Accounts Button */}
           <button
             onClick={() => setAccountSwitcherModalOpen(true)}
@@ -131,11 +193,16 @@ export const Navbar: React.FC = () => {
 
                 {isAccountMenuOpen && (
                   <div
-                    className="absolute right-0 top-full mt-1.5 w-56 rounded-2xl bg-white border border-stone-200 shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150 text-xs"
+                    className="absolute right-0 top-full mt-1.5 w-60 rounded-2xl bg-white border border-stone-200 shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150 text-xs"
                     onClick={() => setIsAccountMenuOpen(false)}
                   >
                     <div className="px-3.5 py-2 border-b border-stone-100">
-                      <p className="font-bold text-stone-900 truncate">{currentUser.business_name}</p>
+                      <p className="font-bold text-stone-900 truncate flex items-center gap-1">
+                        <span>{currentUser.business_name}</span>
+                        {currentUser.is_verified && (
+                          <ShieldCheck className="w-3.5 h-3.5 text-blue-600 inline fill-blue-100" />
+                        )}
+                      </p>
                       <p className="text-[11px] text-stone-500 truncate">{currentUser.category}</p>
                     </div>
 
@@ -146,6 +213,39 @@ export const Navbar: React.FC = () => {
                       <User className="w-3.5 h-3.5 text-stone-500" />
                       <span>View My Profile</span>
                     </button>
+
+                    <button
+                      onClick={() => setOnboardingModalOpen(true)}
+                      className="w-full px-3.5 py-2 text-left font-medium text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-orange-600" />
+                      <span>Setup & Onboarding Wizard</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('messages')}
+                      className="w-full px-3.5 py-2 text-left font-medium text-stone-700 hover:bg-stone-50 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <MessageCircle className="w-3.5 h-3.5 text-orange-600" />
+                        <span>Direct Messages</span>
+                      </div>
+                      {unreadMessagesCount > 0 && (
+                        <span className="px-1.5 py-0.2 rounded-full bg-orange-600 text-white text-[10px]">
+                          {unreadMessagesCount}
+                        </span>
+                      )}
+                    </button>
+
+                    {isStaff && (
+                      <button
+                        onClick={() => setActiveTab('admin')}
+                        className="w-full px-3.5 py-2 text-left font-medium text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                      >
+                        <Shield className="w-3.5 h-3.5 text-orange-600" />
+                        <span>Staff Console (/admin)</span>
+                      </button>
+                    )}
 
                     <button
                       onClick={() => setEditProfileModalOpen(true)}
@@ -177,7 +277,7 @@ export const Navbar: React.FC = () => {
                         className="w-full px-3.5 py-2 text-left font-medium text-red-600 hover:bg-red-50 flex items-center gap-2"
                       >
                         <LogOut className="w-3.5 h-3.5" />
-                        <span>Log Out of Session</span>
+                        <span>Log Out (To Sign In / Create)</span>
                       </button>
                     </div>
                   </div>
@@ -187,16 +287,22 @@ export const Navbar: React.FC = () => {
           ) : (
             <div className="flex items-center gap-1.5">
               <button
-                onClick={openAuthModal}
+                onClick={() => setActiveTab('auth')}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-xs font-semibold shadow-sm transition active:scale-95"
               >
                 <User className="w-3.5 h-3.5" />
-                <span>Log In</span>
+                <span>Log In / Create</span>
               </button>
             </div>
           )}
         </div>
       </div>
+
+      {/* Notifications Modal */}
+      <NotificationsModal
+        isOpen={isNotificationsModalOpen}
+        onClose={() => setNotificationsModalOpen(false)}
+      />
     </header>
   );
 };

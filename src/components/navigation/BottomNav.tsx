@@ -1,21 +1,21 @@
 import React from 'react';
-import { Compass, Home, Plus, User } from 'lucide-react';
+import { Compass, Home, MessageCircle, Plus, User } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 
 export const BottomNav: React.FC = () => {
-  const { activeTab, setActiveTab, currentUser, openAuthModal, openCreateModal, viewProfile } = useApp();
+  const { activeTab, setActiveTab, currentUser, openCreateModal, viewProfile, unreadMessagesCount } = useApp();
 
   const handleProfileClick = () => {
     if (currentUser) {
       viewProfile(currentUser.id);
     } else {
-      openAuthModal();
+      setActiveTab('auth');
     }
   };
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 pb-safe shadow-lg">
-      <div className="max-w-md mx-auto grid grid-cols-4 items-center h-16 px-2">
+      <div className="max-w-md mx-auto grid grid-cols-5 items-center h-16 px-1">
         {/* Tab 1: Home */}
         <button
           onClick={() => setActiveTab('home')}
@@ -51,11 +51,30 @@ export const BottomNav: React.FC = () => {
           </button>
         </div>
 
-        {/* Tab 4: Profile */}
+        {/* Tab 4: Messages / Inbox */}
+        <button
+          onClick={() => setActiveTab('messages')}
+          className={`min-h-[44px] relative flex flex-col items-center justify-center transition-colors group ${
+            activeTab === 'messages' ? 'text-orange-600' : 'text-stone-500 hover:text-stone-900'
+          }`}
+          aria-label="Direct Messages"
+        >
+          <div className="relative">
+            <MessageCircle className={`w-5 h-5 transition-transform group-active:scale-90 ${activeTab === 'messages' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+            {unreadMessagesCount > 0 && (
+              <span className="absolute -top-1 -right-1.5 px-1 min-w-[14px] h-[14px] rounded-full bg-orange-600 text-white text-[9px] font-bold flex items-center justify-center">
+                {unreadMessagesCount}
+              </span>
+            )}
+          </div>
+          <span className="text-[10px] font-semibold tracking-tight mt-1">Inbox</span>
+        </button>
+
+        {/* Tab 5: Profile or Login */}
         <button
           onClick={handleProfileClick}
           className={`min-h-[44px] flex flex-col items-center justify-center transition-colors group ${
-            activeTab === 'profile' ? 'text-orange-600' : 'text-stone-500 hover:text-stone-900'
+            activeTab === 'profile' || activeTab === 'auth' ? 'text-orange-600' : 'text-stone-500 hover:text-stone-900'
           }`}
           aria-label="Business Profile"
         >
@@ -69,9 +88,11 @@ export const BottomNav: React.FC = () => {
               }`}
             />
           ) : (
-            <User className={`w-5 h-5 transition-transform group-active:scale-90 ${activeTab === 'profile' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+            <User className={`w-5 h-5 transition-transform group-active:scale-90 ${activeTab === 'auth' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
           )}
-          <span className="text-[10px] font-semibold tracking-tight mt-1">Profile</span>
+          <span className="text-[10px] font-semibold tracking-tight mt-1">
+            {currentUser ? 'Profile' : 'Sign In'}
+          </span>
         </button>
       </div>
     </nav>

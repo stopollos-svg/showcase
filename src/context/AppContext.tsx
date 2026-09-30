@@ -1,7 +1,18 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { db } from '../lib/mockEngine';
+import { viewTracker } from '../lib/viewTracker';
 import { getStoredSupabaseConfig, isSupabaseConfigured, saveStoredSupabaseConfig } from '../lib/supabase';
-import { ActivityLog, Post, Profile } from '../types';
+import {
+  ActivityLog,
+  AppNotification,
+  Comment,
+  Conversation,
+  Message,
+  Post,
+  Profile,
+  Report,
+  VerificationRequest,
+} from '../types';
 
 interface ToastMessage {
   id: string;
@@ -9,10 +20,12 @@ interface ToastMessage {
   type: 'info' | 'success' | 'error';
 }
 
+export type TabType = 'home' | 'discover' | 'profile' | 'messages' | 'admin' | 'auth';
+
 interface AppContextType {
   currentUser: Profile | null;
-  activeTab: 'home' | 'discover' | 'profile';
-  setActiveTab: (tab: 'home' | 'discover' | 'profile') => void;
+  activeTab: TabType;
+  setActiveTab: (tab: TabType) => void;
   selectedProfileId: string | null;
   viewProfile: (profileId: string) => void;
   searchQuery: string;
@@ -20,10 +33,12 @@ interface AppContextType {
   selectedCategory: string;
   setSelectedCategory: (category: string) => void;
 
-  // Auth
+  // Auth & Onboarding
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
   closeAuthModal: () => void;
+  isOnboardingModalOpen: boolean;
+  setOnboardingModalOpen: (open: boolean) => void;
   sendOtp: (type: 'email' | 'phone', value: string) => Promise<{ code: string }>;
   verifyOtp: (
     type: 'email' | 'phone',
@@ -39,6 +54,10 @@ interface AppContextType {
   // Feed & Posts
   posts: Post[];
   refreshFeed: () => void;
+  recordView: (postId: string) => void;
+  recordViewsBatch: (postIds: string[]) => void;
+  recomputeTrending: () => void;
+  getProfilePosts: (userId: string, sort?: 'latest' | 'popular') => Post[];
   createPost: (data: {
     media_type: 'image' | 'video' | 'audio';
     media_url: string;
@@ -49,17 +68,58 @@ interface AppContextType {
   updatePost: (postId: string, updates: Partial<Post>) => Promise<Post>;
   deletePost: (postId: string) => Promise<boolean>;
 
+  // Comments V2
+  getComments: (postId: string, sortBy?: 'top' | 'newest') => Comment[];
+  addComment: (
+    postId: string,
+    body: string,
+    parentCommentId?: string | null,
+    mentionedUserIds?: string[]
+  ) => Promise<Comment>;
+  toggleCommentLike: (commentId: string) => Promise<{ isLiked: boolean; likesCount: number }>;
+  togglePinComment: (postId: string, commentId: string) => Promise<boolean>;
+  editComment: (commentId: string, newBody: string) => Promise<Comment>;
+  deleteComment: (commentId: string, postId: string) => Promise<boolean>;
+
+  // Notifications
+  notifications: AppNotification[];
+  unreadNotificationsCount: number;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
+
+  // Direct Messaging
+  conversations: Conversation[];
+  activeChatUserId: string | null;
+  setActiveChatUserId: (userId: string | null) => void;
+  openChatWithUser: (userId: string) => void;
+  getChatMessages: (otherUserId: string) => Message[];
+  sendMessage: (recipientId: string, content: string) => Promise<Message>;
+  canSendMessage: (recipientId: string) => { allowed: boolean; reason?: string };
+  markConversationRead: (otherUserId: string) => void;
+  simulateReply: (otherUserId: string) => void;
+  unreadMessagesCount: number;
+
   // Follow
   followUser: (targetId: string) => Promise<void>;
   unfollowUser: (targetId: string) => Promise<void>;
   removeFollower: (followerId: string) => Promise<void>;
   approveFollowRequest: (followerId: string) => Promise<void>;
 
-  // Safety
+  // Safety & Moderation
   blockUser: (targetId: string) => Promise<void>;
   unblockUser: (targetId: string) => Promise<void>;
-  reportTarget: (type: 'post' | 'profile', targetId: string, reason: string, details?: string) => Promise<void>;
+  reportTarget: (type: 'post' | 'profile' | 'comment', targetId: string, reason: string, details?: string) => Promise<void>;
   getActivityLogs: () => ActivityLog[];
+
+  // Staff & Admin
+  isStaff: boolean;
+  staffRole: 'admin' | 'moderator' | null;
+  getReports: () => Report[];
+  updateReportStatus: (reportId: string, status: 'open' | 'in_review' | 'resolved' | 'dismissed') => void;
+  getVerificationRequests: () => VerificationRequest[];
+  approveVerification: (reqId: string) => void;
+  rejectVerification: (reqId: string, reason: string) => void;
+  toggleVerifiedBadge: (userId: string) => void;
 
   // Modals & UI
   isCreateModalOpen: boolean;
@@ -87,18 +147,24 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const CURRENT_USER_STORAGE_KEY = 'amapati_current_user_id_v2';
+const CURRENT_USER_STORAGE_KEY = 'amapati_current_user_id_v4';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<Profile | null>(null);
-  const [activeTab, setActiveTab] = useState<'home' | 'discover' | 'profile'>('home');
+  const [activeTab, setActiveTab] = useState<TabType>('home');
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [posts, setPosts] = useState<Post[]>([]);
 
+  // Messaging & Notifications
+  const [activeChatUserId, setActiveChatUserId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
   // Modals
   const [isAuthModalOpen, setAuthModalOpen] = useState(false);
+  const [isOnboardingModalOpen, setOnboardingModalOpen] = useState(false);
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditProfileModalOpen, setEditProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
@@ -125,7 +191,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Initialize Session: Load stored user or default to Bella Terra Roasters demo login
+  // Initialize Session: Load stored user or default to Bella Terra Roasters
   useEffect(() => {
     const storedId = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
     if (storedId) {
@@ -133,12 +199,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (profile) {
         setCurrentUser(profile);
       } else {
-        // Fallback demo account
         const demo = db.getProfile('user_coffee');
         if (demo) setCurrentUser(demo);
       }
     } else {
-      // First visit: log into demo artisan account so user immediately experiences the platform
       const demo = db.getProfile('user_coffee');
       if (demo) {
         setCurrentUser(demo);
@@ -147,7 +211,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // Refresh feeds
+  // Sync /admin URL if path is /admin
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.pathname === '/admin') {
+      setActiveTab('admin');
+    }
+  }, []);
+
+  // Wire up client-side viewTracker flush handler
+  useEffect(() => {
+    viewTracker.setFlushHandler((postIds) => {
+      db.recordViewsBatch(postIds, currentUser?.id);
+    });
+  }, [currentUser?.id]);
+
+  const recordView = (postId: string) => {
+    viewTracker.queueView(postId, currentUser?.id);
+  };
+
+  const recordViewsBatch = (postIds: string[]) => {
+    db.recordViewsBatch(postIds, currentUser?.id);
+  };
+
+  const recomputeTrending = () => {
+    db.recomputeTrendingScores();
+    refreshFeed();
+  };
+
+  const getProfilePosts = (userId: string, sort: 'latest' | 'popular' = 'latest') => {
+    return db.getPostsByUser(userId, currentUser?.id, sort);
+  };
+
+  // Refresh feed, conversations & notifications
   const refreshFeed = () => {
     const feed = db.getPosts({
       viewerId: currentUser?.id,
@@ -157,10 +252,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     setPosts(feed);
 
-    // Refresh current user counts
     if (currentUser) {
       const refreshed = db.getProfile(currentUser.id);
       if (refreshed) setCurrentUser(refreshed);
+      setConversations(db.getConversations(currentUser.id));
+      setNotifications(db.getNotifications(currentUser.id));
+    } else {
+      setConversations([]);
+      setNotifications([]);
     }
   };
 
@@ -173,14 +272,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveTab('profile');
   };
 
+  const openChatWithUser = (userId: string) => {
+    if (!currentUser) {
+      setActiveTab('auth');
+      showToast('Please sign in to message businesses.', 'info');
+      return;
+    }
+    setActiveChatUserId(userId);
+    setActiveTab('messages');
+  };
+
   // Auth functions
   const sendOtp = async (_type: 'email' | 'phone', _value: string): Promise<{ code: string }> => {
-    // Deterministic 6-digit test code for seamless testing
     const code = '123456';
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve({ code });
-      }, 500);
+      }, 350);
     });
   };
 
@@ -191,15 +299,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     businessInfo?: { businessName: string; category: string; bio?: string; contact?: string; avatar_url?: string }
   ): Promise<boolean> => {
     if (code !== '123456' && code.length !== 6) {
-      showToast('Invalid verification code. Use 123456.', 'error');
+      showToast('Invalid verification code. Use 123456 for instant access.', 'error');
       return false;
     }
 
-    // Check if profile exists for this identifier
     const userId = 'usr_' + value.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
     let profile = db.getProfile(userId);
+    const isNewUser = !profile;
 
-    if (!profile) {
+    if (isNewUser) {
       profile = db.createOrUpdateProfile({
         id: userId,
         business_name: businessInfo?.businessName || (type === 'email' ? value.split('@')[0] : 'My Business'),
@@ -209,15 +317,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         avatar_url: businessInfo?.avatar_url || '/src/assets/images/coffee_roaster_1790587302699.jpg',
         is_private: false,
       });
-      showToast('Welcome to Amapati! Your business profile is ready.', 'success');
-    } else {
+      showToast('Welcome to Amapati! Let\'s setup your showcase.', 'success');
+    } else if (profile) {
       showToast('Welcome back, ' + profile.business_name + '!', 'success');
     }
 
-    setCurrentUser(profile);
-    localStorage.setItem(CURRENT_USER_STORAGE_KEY, profile.id);
+    if (profile) {
+      setCurrentUser(profile);
+      localStorage.setItem(CURRENT_USER_STORAGE_KEY, profile.id);
+    }
     setAuthModalOpen(false);
+    setActiveTab('home');
     refreshFeed();
+
+    // Launch onboarding wizard for new users!
+    if (isNewUser) {
+      setTimeout(() => {
+        setOnboardingModalOpen(true);
+      }, 400);
+    }
+
     return true;
   };
 
@@ -225,7 +344,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
     setCurrentUser(null);
     setSelectedProfileId(null);
-    showToast('Logged out of business session.');
+    setActiveChatUserId(null);
+    setActiveTab('auth');
+    showToast('Logged out. Please sign in or create a business account.');
     refreshFeed();
   };
 
@@ -239,6 +360,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(CURRENT_USER_STORAGE_KEY, profile.id);
     setSelectedProfileId(null);
     showToast(`Switched active session to ${profile.business_name}!`, 'success');
+    if (activeTab === 'auth') setActiveTab('home');
     refreshFeed();
   };
 
@@ -272,7 +394,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     thumbnail_url?: string;
   }): Promise<Post> => {
     if (!currentUser) {
-      setAuthModalOpen(true);
+      setActiveTab('auth');
       throw new Error('Please sign in to showcase your craft.');
     }
 
@@ -310,16 +432,123 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return success;
   };
 
+  // Comments V2
+  const getComments = (postId: string, sortBy: 'top' | 'newest' = 'top'): Comment[] => {
+    return db.getComments(postId, currentUser?.id, sortBy);
+  };
+
+  const addComment = async (
+    postId: string,
+    body: string,
+    parentCommentId?: string | null,
+    mentionedUserIds?: string[]
+  ): Promise<Comment> => {
+    if (!currentUser) {
+      setActiveTab('auth');
+      throw new Error('Please sign in to comment on showcases.');
+    }
+    const comment = db.addComment(postId, currentUser.id, body, parentCommentId, mentionedUserIds);
+    showToast(parentCommentId ? 'Reply posted.' : 'Comment posted.', 'success');
+    refreshFeed();
+    return comment;
+  };
+
+  const toggleCommentLike = async (commentId: string): Promise<{ isLiked: boolean; likesCount: number }> => {
+    if (!currentUser) {
+      setActiveTab('auth');
+      throw new Error('Please sign in to like comments.');
+    }
+    const res = db.toggleCommentLike(commentId, currentUser.id);
+    refreshFeed();
+    return res;
+  };
+
+  const togglePinComment = async (postId: string, commentId: string): Promise<boolean> => {
+    if (!currentUser) throw new Error('Not authenticated');
+    const isPinned = db.togglePinComment(postId, commentId, currentUser.id);
+    showToast(isPinned ? 'Comment pinned to top of showcase.' : 'Comment unpinned.', 'success');
+    refreshFeed();
+    return isPinned;
+  };
+
+  const editComment = async (commentId: string, newBody: string): Promise<Comment> => {
+    if (!currentUser) throw new Error('Not authenticated');
+    const updated = db.editComment(commentId, currentUser.id, newBody);
+    showToast('Comment updated.', 'success');
+    refreshFeed();
+    return updated;
+  };
+
+  const deleteComment = async (commentId: string, _postId: string): Promise<boolean> => {
+    if (!currentUser) throw new Error('Not authenticated');
+    const success = db.deleteComment(commentId, currentUser.id);
+    if (success) {
+      showToast('Comment deleted.', 'info');
+      refreshFeed();
+    }
+    return success;
+  };
+
+  // Notifications
+  const markNotificationRead = (id: string) => {
+    db.markNotificationRead(id);
+    if (currentUser) setNotifications(db.getNotifications(currentUser.id));
+  };
+
+  const markAllNotificationsRead = () => {
+    if (!currentUser) return;
+    db.markAllNotificationsRead(currentUser.id);
+    setNotifications(db.getNotifications(currentUser.id));
+  };
+
+  const unreadNotificationsCount = notifications.filter((n) => !n.is_read).length;
+
+  // Messaging & Reply Protection
+  const getChatMessages = (otherUserId: string): Message[] => {
+    if (!currentUser) return [];
+    return db.getMessages(currentUser.id, otherUserId);
+  };
+
+  const canSendMessage = (recipientId: string): { allowed: boolean; reason?: string } => {
+    if (!currentUser) return { allowed: false, reason: 'Please sign in to send messages.' };
+    return db.canSendMessage(currentUser.id, recipientId);
+  };
+
+  const sendMessage = async (recipientId: string, content: string): Promise<Message> => {
+    if (!currentUser) {
+      setActiveTab('auth');
+      throw new Error('Please sign in to send messages.');
+    }
+    const msg = db.sendMessage(currentUser.id, recipientId, content);
+    setConversations(db.getConversations(currentUser.id));
+    return msg;
+  };
+
+  const markConversationRead = (otherUserId: string) => {
+    if (!currentUser) return;
+    db.markConversationRead(currentUser.id, otherUserId);
+    setConversations(db.getConversations(currentUser.id));
+  };
+
+  const simulateReply = (otherUserId: string) => {
+    if (!currentUser) return;
+    db.simulateReply(otherUserId, currentUser.id);
+    setConversations(db.getConversations(currentUser.id));
+    const sender = db.getProfile(otherUserId);
+    showToast(`New reply from ${sender?.business_name || 'artisan'}! Inbox unlocked.`, 'info');
+  };
+
+  const unreadMessagesCount = conversations.reduce((acc, c) => acc + c.unread_count, 0);
+
   // Follows
   const followUser = async (targetId: string) => {
     if (!currentUser) {
-      setAuthModalOpen(true);
+      setActiveTab('auth');
+      showToast('Please sign in to follow businesses.', 'info');
       return;
     }
     const status = db.followUser(currentUser.id, targetId);
-    if (status === 'pending') {
-      showToast('Follow request sent (private business account).', 'info');
-    } else {
+    if (status) {
       showToast('Following business!', 'success');
     }
     refreshFeed();
@@ -349,7 +578,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Safety
   const blockUser = async (targetId: string) => {
     if (!currentUser) {
-      setAuthModalOpen(true);
+      setActiveTab('auth');
       return;
     }
     db.blockUser(currentUser.id, targetId);
@@ -368,18 +597,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshFeed();
   };
 
-  const reportTarget = async (type: 'post' | 'profile', targetId: string, reason: string, details?: string) => {
+  const reportTarget = async (type: 'post' | 'profile' | 'comment', targetId: string, reason: string, details?: string) => {
     if (!currentUser) {
-      setAuthModalOpen(true);
+      setActiveTab('auth');
       return;
     }
     db.reportTarget(currentUser.id, type, targetId, reason, details);
-    showToast('Report submitted for review. Thank you for keeping Amapati safe.', 'success');
+    showToast('Report submitted for moderation review. Thank you.', 'success');
   };
 
   const getActivityLogs = (): ActivityLog[] => {
-    if (!currentUser) return [];
-    return db.getActivityLogs(currentUser.id);
+    return db.getActivityLogs(currentUser?.id);
+  };
+
+  // Staff & Admin
+  const isStaff = currentUser ? db.isStaff(currentUser.id) || currentUser.id === 'user_admin' : false;
+  const staffRole = currentUser ? db.getStaffRole(currentUser.id) || (currentUser.id === 'user_admin' ? 'admin' : null) : null;
+
+  const getReports = (): Report[] => db.getReports();
+
+  const updateReportStatus = (reportId: string, status: 'open' | 'in_review' | 'resolved' | 'dismissed') => {
+    db.updateReportStatus(reportId, status);
+    showToast(`Report updated to ${status}.`, 'info');
+  };
+
+  const getVerificationRequests = (): VerificationRequest[] => db.getVerificationRequests();
+
+  const approveVerification = (reqId: string) => {
+    if (!currentUser) return;
+    db.approveVerification(reqId, currentUser.id);
+    showToast('Business verified! Verified badge granted.', 'success');
+    refreshFeed();
+  };
+
+  const rejectVerification = (reqId: string, reason: string) => {
+    if (!currentUser) return;
+    db.rejectVerification(reqId, currentUser.id, reason);
+    showToast('Verification request rejected.', 'info');
+    refreshFeed();
+  };
+
+  const toggleVerifiedBadge = (userId: string) => {
+    if (!currentUser) return;
+    db.toggleVerifiedBadge(userId, currentUser.id);
+    showToast('Verified badge status updated.', 'success');
+    refreshFeed();
   };
 
   const updateSupabaseConfig = (url: string, key: string) => {
@@ -410,6 +672,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isAuthModalOpen,
         openAuthModal: () => setAuthModalOpen(true),
         closeAuthModal: () => setAuthModalOpen(false),
+        isOnboardingModalOpen,
+        setOnboardingModalOpen,
         sendOtp,
         verifyOtp,
         logout,
@@ -419,9 +683,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         posts,
         refreshFeed,
+        recordView,
+        recordViewsBatch,
+        recomputeTrending,
+        getProfilePosts,
         createPost,
         updatePost,
         deletePost,
+
+        getComments,
+        addComment,
+        toggleCommentLike,
+        togglePinComment,
+        editComment,
+        deleteComment,
+
+        notifications,
+        unreadNotificationsCount,
+        markNotificationRead,
+        markAllNotificationsRead,
+
+        conversations,
+        activeChatUserId,
+        setActiveChatUserId,
+        openChatWithUser,
+        getChatMessages,
+        sendMessage,
+        canSendMessage,
+        markConversationRead,
+        simulateReply,
+        unreadMessagesCount,
 
         followUser,
         unfollowUser,
@@ -433,10 +724,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         reportTarget,
         getActivityLogs,
 
+        isStaff,
+        staffRole,
+        getReports,
+        updateReportStatus,
+        getVerificationRequests,
+        approveVerification,
+        rejectVerification,
+        toggleVerifiedBadge,
+
         isCreateModalOpen,
         openCreateModal: () => {
           if (!currentUser) {
-            setAuthModalOpen(true);
+            setActiveTab('auth');
           } else {
             setCreateModalOpen(true);
           }

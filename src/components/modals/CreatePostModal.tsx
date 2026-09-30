@@ -19,15 +19,18 @@ import {
   validateAndProcessVideo,
 } from '../../lib/media';
 import { MediaType } from '../../types';
+import { Tag, Users } from 'lucide-react';
 
 export const CreatePostModal: React.FC = () => {
-  const { isCreateModalOpen, closeCreateModal, createPost, showToast } = useApp();
+  const { isCreateModalOpen, closeCreateModal, createPost, communities, showToast } = useApp();
 
   const [mediaType, setMediaType] = useState<MediaType>('image');
   const [caption, setCaption] = useState('');
   const [mediaUrl, setMediaUrl] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState<string | undefined>(undefined);
   const [duration, setDuration] = useState<number | undefined>(undefined);
+  const [selectedCommunity, setSelectedCommunity] = useState('');
+  const [tagsInput, setTagsInput] = useState('');
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [compressionInfo, setCompressionInfo] = useState<string | null>(null);
@@ -112,16 +115,29 @@ export const CreatePostModal: React.FC = () => {
 
     setIsProcessing(true);
     try {
+      const tags = tagsInput
+        .split(',')
+        .map((s) => s.trim().replace(/^#/, ''))
+        .filter(Boolean);
+
+      const comm = communities.find((c) => c.id === selectedCommunity);
+
       await createPost({
         media_type: mediaType,
         media_url: mediaUrl,
         caption: caption.trim(),
         duration,
         thumbnail_url: thumbnailUrl,
+        tags,
+        community_id: comm?.id,
+        community_name: comm?.name,
       });
       // reset
       setCaption('');
       setMediaUrl('');
+      setTagsInput('');
+      setSelectedCommunity('');
+      closeCreateModal();
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to publish post.');
     } finally {
@@ -321,6 +337,44 @@ export const CreatePostModal: React.FC = () => {
               maxLength={300}
             />
             <span className="text-[10px] text-stone-400 block text-right">{caption.length}/300</span>
+          </div>
+
+          {/* Community Selection */}
+          <div>
+            <label className="block font-semibold text-stone-700 mb-1 flex items-center gap-1">
+              <Users className="w-3.5 h-3.5 text-orange-600" />
+              <span>Publish in Community (Optional)</span>
+            </label>
+            <select
+              value={selectedCommunity}
+              onChange={(e) => setSelectedCommunity(e.target.value)}
+              className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-stone-900 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+            >
+              <option value="">No Community (General Showcase)</option>
+              {communities.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.niche})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Interest Tags */}
+          <div>
+            <label className="block font-semibold text-stone-700 mb-1 flex items-center gap-1">
+              <Tag className="w-3.5 h-3.5 text-orange-600" />
+              <span>Interest & Craft Tags (comma separated)</span>
+            </label>
+            <input
+              type="text"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              placeholder="e.g. specialtycoffee, pourover, singleorigin"
+              className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-stone-900 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500"
+            />
+            <p className="text-[10px] text-stone-400 mt-1">
+              Tags help your craft show up in trending interests and searches.
+            </p>
           </div>
 
           {/* Submit Actions */}

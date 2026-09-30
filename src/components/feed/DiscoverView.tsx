@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, X, Grid, List, Sparkles } from 'lucide-react';
+import { Search, X, Grid, List, Sparkles, Flame, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PostCard } from './PostCard';
 import { BUSINESS_CATEGORIES, Post } from '../../types';
@@ -19,9 +19,11 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ onEditPost, onReport
     setSelectedCategory,
     viewProfile,
     currentUser,
+    recomputeTrending,
   } = useApp();
 
   const [viewLayout, setViewLayout] = useState<'stream' | 'grid'>('stream');
+  const [isRecomputing, setIsRecomputing] = useState(false);
 
   // Featured business profiles for quick discovery
   const featuredBusinesses = db.getAllProfiles(currentUser?.id);
@@ -111,6 +113,43 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ onEditPost, onReport
           </div>
         </section>
       )}
+
+      {/* Trending Velocity & Discover Diversity Banner */}
+      <div className="mb-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl p-3 sm:p-3.5 shadow-2xs">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <div className="p-2 rounded-xl bg-orange-600 text-white shadow-xs shrink-0 mt-0.5">
+              <Flame className="w-4 h-4 fill-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="text-xs font-bold text-stone-900">
+                  Trending Velocity Ranking
+                </h3>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-amber-200 text-amber-900 font-bold">
+                  24h Velocity / Age Decay
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-600 mt-0.5 leading-snug">
+                Ranked by 24h views, likes, comments, shares & saves with early fresh boost. Max 2 slots per business in top 20 to avoid monopoly.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              recomputeTrending();
+              setIsRecomputing(true);
+              setTimeout(() => setIsRecomputing(false), 500);
+            }}
+            className="shrink-0 px-2.5 py-1.5 rounded-xl bg-white border border-stone-200 hover:border-orange-400 text-stone-700 text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 shadow-2xs"
+            title="Recompute trending rankings on-demand"
+          >
+            <RefreshCw className={`w-3 h-3 text-orange-600 ${isRecomputing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Re-rank</span>
+          </button>
+        </div>
+      </div>
 
       {/* 4. Layout Switch & Result Count Header */}
       <div className="flex items-center justify-between mb-3 text-xs text-stone-500">

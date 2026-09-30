@@ -10,6 +10,9 @@ export interface Profile {
   contact: string;
   avatar_url: string;
   is_private: boolean;
+  is_verified?: boolean;
+  verified_at?: string;
+  verified_by?: string;
   created_at: string;
   updated_at: string;
   followers_count?: number;
@@ -32,7 +35,80 @@ export interface Post {
   updated_at: string;
   user?: Profile;
   likes_count?: number;
+  like_count?: number;
+  comments_count?: number;
+  comment_count?: number;
+  view_count?: number;
+  share_count?: number;
+  save_count?: number;
+  trending_score?: number;
+  trending_updated_at?: string;
   is_liked?: boolean;
+}
+
+export interface PostView {
+  id: string;
+  post_id: string;
+  viewer_id?: string | null;
+  created_at: string;
+}
+
+export interface Comment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  parent_comment_id?: string | null;
+  body: string;
+  content?: string; // alias
+  is_pinned?: boolean;
+  is_edited?: boolean;
+  edited_at?: string | null;
+  deleted_at?: string | null;
+  created_at: string;
+  updated_at?: string;
+  user?: Profile;
+  likes_count?: number;
+  is_liked?: boolean;
+  replies?: Comment[];
+  mentioned_users?: string[];
+}
+
+export interface CommentLike {
+  comment_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  actor_id: string;
+  type: 'comment' | 'reply' | 'mention' | 'like' | 'follow';
+  target_id: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+  actor?: Profile;
+}
+
+export interface Message {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  content: string;
+  is_read: boolean;
+  created_at: string;
+  sender?: Profile;
+  recipient?: Profile;
+}
+
+export interface Conversation {
+  other_user: Profile;
+  last_message: Message;
+  unread_count: number;
+  can_send_next: boolean;
+  waiting_reason?: string;
 }
 
 export interface Follow {
@@ -53,11 +129,36 @@ export interface Block {
 export interface Report {
   id: string;
   reporter_id: string;
-  target_type: 'post' | 'profile';
+  target_type: 'post' | 'profile' | 'comment';
   target_id: string;
   reason: string;
   details?: string;
+  status?: 'open' | 'in_review' | 'resolved' | 'dismissed';
   created_at: string;
+  reporter?: Profile;
+}
+
+export interface VerificationRequest {
+  id: string;
+  user_id: string;
+  business_name: string;
+  category: string;
+  proof_url: string;
+  contact: string;
+  notes?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewed_by?: string;
+  reviewed_at?: string;
+  rejection_reason?: string;
+  created_at: string;
+  user?: Profile;
+}
+
+export interface StaffRole {
+  user_id: string;
+  role: 'admin' | 'moderator';
+  created_at: string;
+  created_by?: string;
 }
 
 export interface ActivityLog {
@@ -69,12 +170,22 @@ export interface ActivityLog {
     | 'post_created'
     | 'post_edited'
     | 'post_deleted'
+    | 'comment_created'
+    | 'comment_edited'
+    | 'comment_deleted'
+    | 'comment_pinned'
+    | 'comment_unpinned'
+    | 'comment_moderated'
+    | 'comment_liked'
+    | 'message_sent'
     | 'followed'
     | 'unfollowed'
     | 'follower_removed'
     | 'blocked'
     | 'unblocked'
     | 'reported'
+    | 'verified_approved'
+    | 'verified_rejected'
     | string;
   entity_type: string;
   entity_id: string;

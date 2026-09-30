@@ -75,22 +75,45 @@ amapati/
 ## 2. Supabase SQL Migration Files
 
 ### Table Schemas
-- `profiles`: Business name, short bio, category, contact, avatar, privacy status (`is_private`), timestamps.
+- `profiles`: Business name, short bio, category, contact, avatar, privacy status (`is_private`), verified badge (`is_verified`), timestamps.
 - `posts`: Media type (`image`, `video`, `audio`), media URL, thumbnail URL, caption, duration, soft-delete flag (`is_deleted`), timestamps.
+- `comments`: Post ID, User ID, Content, timestamps. RLS ensures anyone can view comments on public posts, authors and post owners can delete comments.
+- `messages`: Sender ID, Recipient ID, Content, `is_read`, timestamps. Protected by `can_send_message()` rule: **limits message sending when there is no reply in the inbox** to prevent unsolicited spam.
 - `follows`: Follower ID, following ID, status (`pending`, `accepted`), timestamp.
 - `blocks`: Blocker ID, blocked ID, timestamp.
-- `reports`: Reporter ID, target type (`post`, `profile`), target ID, reason, details.
+- `reports`: Reporter ID, target type (`post`, `profile`), target ID, reason, status (`open`, `resolved`, `dismissed`).
+- `staff_roles`: User ID, role (`admin` or `moderator`), creation metadata.
+- `verification_requests`: User ID, business proof URL, trade license details, review notes and approval status.
 - `activity_log`: Append-only transaction and update log with `user_id`, `action`, `entity_type`, `entity_id`, `old_data` (JSONB), and `new_data` (JSONB).
 
 ### Triggers & Functions
 - `set_updated_at()`: Automatically refreshes `updated_at` on profile and post modifications.
-- `log_activity_event()`: Trigger function automatically populating `activity_log` on `INSERT`, `UPDATE`, and `DELETE` for `profiles`, `posts`, `follows`, `blocks`, and `reports`.
+- `log_activity_event()`: Trigger function automatically populating `activity_log` on `INSERT`, `UPDATE`, and `DELETE` for `profiles`, `posts`, `comments`, `follows`, `blocks`, and `reports`.
+- `can_send_message(sender_id, recipient_id)`: Enforces inbox reply requirement before sending subsequent messages.
+- `is_admin()` and `is_moderator()`: SQL security definer functions for admin access control.
 
 ### Row Level Security (RLS)
 - **Profiles**: Readable by anyone unless blocked. Editable only by profile owner.
 - **Posts**: Soft-deleted posts are hidden (`is_deleted = false`). Private profiles only visible to approved followers. Only owner can insert, update, or soft-delete.
-- **Follows**: Profile owner can approve pending follow requests. **Profile owner can REMOVE a follower** from their list via `DELETE FROM follows WHERE following_id = auth.uid()`.
+- **Comments**: Public read on active posts. Comment author OR post owner can delete comments.
+- **Messages**: Users can only read messages where they are sender or recipient. New messages require previous message to have a reply from the recipient.
+- **Follows**: Profile owner can approve pending follow requests. Profile owner can REMOVE a follower.
 - **Activity Log**: Strictly **append-only**; updates and deletes are prohibited.
+
+---
+
+## 3. Creating the First Admin in Supabase
+
+To assign staff privileges for the `/admin` dashboard:
+
+```sql
+-- Replace <user_id> with the UUID of the target business/user profile:
+INSERT INTO public.staff_roles (user_id, role, created_at)
+VALUES ('<user_id>', 'admin', NOW())
+ON CONFLICT (user_id) DO UPDATE SET role = 'admin';
+```
+
+In development and demo mode, the account **Amapati Staff & Trust (`user_admin`)** is pre-configured with the `admin` role and ready to review reports, manage verification badges, and inspect the immutable audit log.
 
 ---
 
@@ -151,3 +174,19 @@ npm run build
 6. **Safety & Moderation**: Report posts/businesses, block users with bidirectional mutual exclusion.
 7. **Activity Log**: Append-only transaction audit trail showing full JSON snapshots of previous vs new state.
 8. **PWA Installability**: Install button, offline detection, and Web App Manifest.
+9. **CommentSection Thread (Bottom Sheet & Side Panel)**:
+   - Responsive dual UI: Bottom sheet on mobile devices, slide-over drawer panel on desktop/tablet.
+   - Top / Newest sorting toggles, 1-level collapsible nested replies ("View N more replies").
+   - Instant optimistic updates with automatic rollback on error.
+   - Author pinning, @mentions autocomplete for artisan businesses, live 500-char counter, 5-minute edit window, and moderation soft-delete.
+10. **Post View Tracking & Trending Ranking**:
+    - **View Tracking**: Logged when a post is ≥ 60% visible for 1+ second continuously via `IntersectionObserver`.
+    - **Rolling 24-Hour Deduplication**: Deduplicated on both client and database levels—scrolling past the same post 5 times in one session only records 1 view.
+    - **Batched Client Flushes**: Views are queued and flushed in batches every 3 seconds to reduce network calls.
+    - **Trending Formula**:
+      $$\text{trending\_score} = \frac{\text{views}_{24h} \times 1 + \text{likes}_{24h} \times 3 + \text{comments}_{24h} \times 5 + \text{shares}_{24h} \times 8 + \text{saves}_{24h} \times 4}{(\text{hours\_since\_created} + 2)^{1.5}}$$
+    - **Fresh Boost**: Posts < 2 hours receive a guaranteed minimum score ($8.5$) so new crafts surface in Discover before accumulating engagement.
+    - **7-Day Cutoff**: Posts older than 7 days are excluded from Discover's trending sort.
+    - **Diversity Guardrail**: No single business may occupy more than 2 of the top 20 Discover slots in one query, ensuring fair visibility for all artisans.
+    - **Profile Popular Sort**: Profiles offer a "Popular" sort option ranking posts by lifetime engagement (likes + comments) rather than ephemeral trending score.
+    - **In-App Acceptance Test Suite**: Test all 4 acceptance criteria directly inside Settings (`Settings > Ranking Engine & Diagnostics > Run View & Trending Tests`).

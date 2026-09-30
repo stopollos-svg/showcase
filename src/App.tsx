@@ -10,6 +10,9 @@ import { BottomNav } from './components/navigation/BottomNav';
 import { FeedView } from './components/feed/FeedView';
 import { DiscoverView } from './components/feed/DiscoverView';
 import { ProfileView } from './components/profile/ProfileView';
+import { MessagesView } from './components/messages/MessagesView';
+import { AuthPage } from './components/auth/AuthPage';
+import { AdminDashboard } from './components/admin/AdminDashboard';
 import { CreatePostModal } from './components/modals/CreatePostModal';
 import { EditPostModal } from './components/modals/EditPostModal';
 import { EditProfileModal } from './components/profile/EditProfileModal';
@@ -19,6 +22,7 @@ import { AuthModal } from './components/modals/AuthModal';
 import { AccountSwitcherModal } from './components/modals/AccountSwitcherModal';
 import { SupabaseConfigModal } from './components/modals/SupabaseConfigModal';
 import { ReportModal } from './components/modals/ReportModal';
+import { OnboardingWizardModal } from './components/modals/OnboardingWizardModal';
 import { OfflineIndicator } from './components/pwa/OfflineIndicator';
 import { ToastContainer } from './components/common/ToastContainer';
 import { Post } from './types';
@@ -53,12 +57,18 @@ const MainApp: React.FC = () => {
           />
         )}
 
+        {activeTab === 'messages' && <MessagesView />}
+
         {activeTab === 'profile' && (
           <ProfileView
             onEditPost={(post) => setEditingPost(post)}
             onReportPost={(post) => setReportingTarget({ type: 'post', post })}
           />
         )}
+
+        {activeTab === 'auth' && <AuthPage />}
+
+        {activeTab === 'admin' && <AdminDashboard />}
       </main>
 
       <BottomNav />
@@ -73,6 +83,7 @@ const MainApp: React.FC = () => {
       <AccountSwitcherModal />
       <SupabaseConfigModal />
       <ReportModal target={reportingTarget} onClose={() => setReportingTarget(null)} />
+      <OnboardingWizardModal />
     </div>
   );
 };

@@ -1,4 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { Profile } from '../types';
+import { db } from './mockEngine';
 
 const STORAGE_KEY_URL = 'amapati_supabase_url';
 const STORAGE_KEY_ANON = 'amapati_supabase_anon';
@@ -55,4 +57,61 @@ export function getSupabase(): SupabaseClient | null {
     }
   }
   return clientInstance;
+}
+
+/**
+ * Searches the 'profiles' table by business name or category using Supabase full-text search.
+ * When Supabase is configured, executes full-text search (textSearch / websearch) or ilike filter on Postgres.
+ * Seamlessly falls back to local database engine when working offline or before Supabase credentials are provided.
+ */
+export async function searchProfilesByFullText(
+  query: string,
+  options?: { category?: string; viewerId?: string }
+): Promise<Profile[]> {
+  const supabase = getSupabase();
+
+  if (supabase && isSupabaseConfigured()) {
+    try {
+      const trimmed = query.trim();
+      let req = supabase.from('profiles').select('*');
+
+      if (options?.category && options.category !== 'all') {
+        req = req.ilike('category', `%${options.category}%`);
+      }
+
+      if (trimmed) {
+        // Use Supabase Postgres Full-Text Search on business_name and category
+        try {
+          const { data: ftsData, error: ftsError } = await req
+            .textSearch('business_name', trimmed, { config: 'english', type: 'websearch' })
+            .limit(20);
+
+          if (!ftsError && ftsData && ftsData.length > 0) {
+            return ftsData as Profile[];
+          }
+        } catch {
+          // Fall back to ilike query on remote Supabase
+        }
+
+        // Secondary fallback to multi-column ilike filter
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .or(`business_name.ilike.%${trimmed}%,category.ilike.%${trimmed}%,bio.ilike.%${trimmed}%`)
+          .limit(20);
+
+        if (!error && data) {
+          return data as Profile[];
+        }
+      } else {
+        const { data } = await req.limit(25);
+        if (data) return data as Profile[];
+      }
+    } catch (err) {
+      console.warn('Supabase remote query failed, falling back to local DB search:', err);
+    }
+  }
+
+  // Local database engine search with relevance ranking
+  return db.searchProfiles(query, options);
 }

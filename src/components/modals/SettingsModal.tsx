@@ -15,9 +15,14 @@ import {
   Edit3,
   Camera,
   Plus,
+  Flame,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { db } from '../../lib/mockEngine';
+import { Profile } from '../../types';
+import { runTrendingAcceptanceTests, TestResult } from '../../lib/trendingTests';
 
 export const SettingsModal: React.FC = () => {
   const {
@@ -37,7 +42,8 @@ export const SettingsModal: React.FC = () => {
     showToast,
   } = useApp();
 
-  const [activeSubView, setActiveSubView] = useState<'main' | 'blocked'>('main');
+  const [activeSubView, setActiveSubView] = useState<'main' | 'blocked' | 'tests'>('main');
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
 
   if (!isSettingsModalOpen || !currentUser) return null;
 
@@ -74,11 +80,15 @@ export const SettingsModal: React.FC = () => {
         {/* Header */}
         <div className="p-4 border-b border-stone-100 flex items-center justify-between">
           <h3 className="font-display text-base font-bold text-stone-900">
-            {activeSubView === 'blocked' ? 'Blocked Users' : 'Settings & Business Session'}
+            {activeSubView === 'blocked'
+              ? 'Blocked Users'
+              : activeSubView === 'tests'
+              ? 'Acceptance Test Suite'
+              : 'Settings & Business Session'}
           </h3>
           <button
             onClick={() => {
-              if (activeSubView === 'blocked') setActiveSubView('main');
+              if (activeSubView !== 'main') setActiveSubView('main');
               else setSettingsModalOpen(false);
             }}
             className="p-1 rounded-full text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition"
@@ -242,6 +252,32 @@ export const SettingsModal: React.FC = () => {
               </button>
             </div>
 
+            {/* Section: View Tracking & Trending Acceptance Tests */}
+            <div>
+              <p className="font-bold uppercase tracking-wider text-stone-400 text-[10px] mb-2">
+                Ranking Engine & Diagnostics
+              </p>
+              <button
+                onClick={() => {
+                  const res = runTrendingAcceptanceTests();
+                  setTestResults(res);
+                  setActiveSubView('tests');
+                }}
+                className="w-full p-3 rounded-xl border border-amber-200 bg-amber-50/50 hover:bg-amber-50 transition flex items-center justify-between text-left"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Flame className="w-4 h-4 text-orange-600 fill-orange-500" />
+                  <div>
+                    <p className="font-semibold text-stone-900">Run View & Trending Tests</p>
+                    <p className="text-[11px] text-stone-500">
+                      Verify dedupe, decay math, 7-day cutoff & diversity rule
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs text-orange-600 font-bold">Run ›</span>
+              </button>
+            </div>
+
             {/* Section: App Tools & Account */}
             <div className="pt-2 border-t border-stone-100 space-y-2">
               <button
@@ -270,11 +306,52 @@ export const SettingsModal: React.FC = () => {
               </button>
             </div>
           </div>
+        ) : activeSubView === 'tests' ? (
+          /* SubView: Acceptance Tests */
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+              <span className="text-xs font-bold text-stone-900">
+                Phase Acceptance Test Suite
+              </span>
+              <button
+                type="button"
+                onClick={() => setTestResults(runTrendingAcceptanceTests())}
+                className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-orange-600 text-white hover:bg-orange-700 transition"
+              >
+                Re-run All Tests
+              </button>
+            </div>
+
+            <div className="space-y-2.5">
+              {testResults.map((t, idx) => (
+                <div
+                  key={idx}
+                  className={`p-3 rounded-xl border text-xs leading-relaxed ${
+                    t.passed
+                      ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                      : 'bg-red-50/70 border-red-200 text-red-950'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 font-bold mb-1">
+                    {t.passed ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                    )}
+                    <span>{t.name}</span>
+                  </div>
+                  <p className="text-[11px] opacity-90 pl-5.5 font-mono">
+                    {t.details}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
           /* SubView: Blocked Users */
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {blockedUsers.length > 0 ? (
-              blockedUsers.map((user) => (
+              blockedUsers.map((user: Profile) => (
                 <div
                   key={user.id}
                   className="flex items-center justify-between p-2 rounded-xl bg-stone-50 border border-stone-200"

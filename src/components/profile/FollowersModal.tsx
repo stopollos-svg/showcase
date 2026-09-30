@@ -92,7 +92,7 @@ export const FollowersModal: React.FC<FollowersModalProps> = ({
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {tab === 'followers' && (
             followers.length > 0 ? (
-              followers.map((user) => (
+              followers.map((user: Profile) => (
                 <div key={user.id} className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-stone-50 transition">
                   <button
                     onClick={() => {
@@ -146,7 +146,7 @@ export const FollowersModal: React.FC<FollowersModalProps> = ({
 
           {tab === 'following' && (
             following.length > 0 ? (
-              following.map((user) => (
+              following.map((user: Profile) => (
                 <div key={user.id} className="flex items-center justify-between gap-3 p-2 rounded-xl hover:bg-stone-50 transition">
                   <button
                     onClick={() => {
@@ -184,7 +184,7 @@ export const FollowersModal: React.FC<FollowersModalProps> = ({
 
           {tab === 'requests' && isOwner && (
             pendingRequests.length > 0 ? (
-              pendingRequests.map((user) => (
+              pendingRequests.map((user: Profile) => (
                 <div key={user.id} className="flex items-center justify-between gap-3 p-2 rounded-xl bg-orange-50/50 border border-orange-100">
                   <button
                     onClick={() => {
