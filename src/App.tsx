@@ -9,10 +9,12 @@ import { Navbar } from './components/navigation/Navbar';
 import { BottomNav } from './components/navigation/BottomNav';
 import { FeedView } from './components/feed/FeedView';
 import { DiscoverView } from './components/feed/DiscoverView';
+import { EventsTrackerView } from './components/events/EventsTrackerView';
 import { ProfileView } from './components/profile/ProfileView';
 import { MessagesView } from './components/messages/MessagesView';
 import { AuthPage } from './components/auth/AuthPage';
 import { AdminDashboard } from './components/admin/AdminDashboard';
+import { BusinessInsightsDashboard } from './components/insights/BusinessInsightsDashboard';
 import { CreatePostModal } from './components/modals/CreatePostModal';
 import { EditPostModal } from './components/modals/EditPostModal';
 import { EditProfileModal } from './components/profile/EditProfileModal';
@@ -23,6 +25,9 @@ import { AccountSwitcherModal } from './components/modals/AccountSwitcherModal';
 import { SupabaseConfigModal } from './components/modals/SupabaseConfigModal';
 import { ReportModal } from './components/modals/ReportModal';
 import { OnboardingWizardModal } from './components/modals/OnboardingWizardModal';
+import { OnboardingTourModal } from './components/modals/OnboardingTourModal';
+import { GlobalSearchModal } from './components/modals/GlobalSearchModal';
+import { WriteReviewModal } from './components/modals/WriteReviewModal';
 import { OfflineIndicator } from './components/pwa/OfflineIndicator';
 import { ToastContainer } from './components/common/ToastContainer';
 import { Post } from './types';
@@ -42,7 +47,7 @@ const MainApp: React.FC = () => {
       <ToastContainer />
       <Navbar />
 
-      <main className="flex-1 w-full max-w-2xl mx-auto px-2 sm:px-4">
+      <main className={`flex-1 w-full mx-auto px-2 sm:px-4 ${activeTab === 'insights' || activeTab === 'admin' ? 'max-w-4xl' : 'max-w-2xl'}`}>
         {activeTab === 'home' && (
           <FeedView
             onEditPost={(post) => setEditingPost(post)}
@@ -57,7 +62,11 @@ const MainApp: React.FC = () => {
           />
         )}
 
+        {activeTab === 'events' && <EventsTrackerView />}
+
         {activeTab === 'messages' && <MessagesView />}
+
+        {activeTab === 'insights' && <BusinessInsightsDashboard />}
 
         {activeTab === 'profile' && (
           <ProfileView
@@ -84,6 +93,9 @@ const MainApp: React.FC = () => {
       <SupabaseConfigModal />
       <ReportModal target={reportingTarget} onClose={() => setReportingTarget(null)} />
       <OnboardingWizardModal />
+      <OnboardingTourModal />
+      <GlobalSearchModal />
+      <WriteReviewModal />
     </div>
   );
 };

@@ -25,10 +25,17 @@ import {
   Flame,
   Heart,
   Eye,
+  BarChart2,
+  QrCode,
+  X,
+  Star,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { db } from '../../lib/mockEngine';
 import { FollowersModal } from './FollowersModal';
+import { BusinessQRCodeModal } from '../modals/BusinessQRCodeModal';
+import { BusinessReviewsList } from './BusinessReviewsList';
+import { UserFeedbackSurveyWidget } from './UserFeedbackSurveyWidget';
 import { Post, MediaType } from '../../types';
 import { PostCard } from '../feed/PostCard';
 
@@ -52,13 +59,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onEditPost, onReportPo
     openAuthModal,
     logout,
     showToast,
+    openWriteReviewModal,
+    startOnboardingTour,
   } = useApp();
 
+  const [activeProfileTab, setActiveProfileTab] = useState<'showcases' | 'reviews'>('showcases');
   const [mediaFilter, setMediaFilter] = useState<'all' | MediaType>('all');
   const [viewStyle, setViewStyle] = useState<'grid' | 'feed'>('grid');
   const [profileSort, setProfileSort] = useState<'latest' | 'popular'>('latest');
   const [followersModalOpen, setFollowersModalOpen] = useState(false);
   const [followersModalTab, setFollowersModalTab] = useState<'followers' | 'following' | 'requests'>('followers');
+  const [isQrModalOpen, setQrModalOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
 
   // If logged out and not viewing another profile, show business portal
   if (!currentUser && !selectedProfileId) {
@@ -227,6 +239,30 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onEditPost, onReportPo
             {isOwner ? (
               <div className="flex flex-wrap items-center gap-1.5 justify-end">
                 <button
+                  onClick={startOnboardingTour}
+                  className="px-3 py-1.5 rounded-xl border border-orange-200/90 bg-orange-50/70 hover:bg-orange-100/80 text-orange-900 text-xs font-semibold transition flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                  title="Interactive business features tour"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-orange-600" />
+                  <span>Tour</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('insights')}
+                  className="px-3.5 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-semibold transition flex items-center gap-1.5 active:scale-95 shadow-sm"
+                  title="View post engagement metrics, views, and reach"
+                >
+                  <BarChart2 className="w-3.5 h-3.5 text-orange-400" />
+                  <span>Insights</span>
+                </button>
+                <button
+                  onClick={() => setQrModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl border border-stone-200 hover:bg-stone-50 text-xs font-semibold text-stone-700 transition flex items-center gap-1.5 active:scale-95 shadow-2xs"
+                  title="Generate printable market stand QR code"
+                >
+                  <QrCode className="w-3.5 h-3.5 text-orange-600" />
+                  <span>Market QR</span>
+                </button>
+                <button
                   onClick={() => setEditProfileModalOpen(true)}
                   className="px-3.5 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold transition flex items-center gap-1.5 active:scale-95 shadow-sm"
                   title="Edit business name, bio, and picture"
@@ -297,6 +333,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onEditPost, onReportPo
                   <span>Message</span>
                 </button>
                 <button
+                  onClick={() => setQrModalOpen(true)}
+                  className="min-h-[36px] min-w-[36px] rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-600 flex items-center justify-center transition"
+                  title="Generate or view Market QR Stand"
+                >
+                  <QrCode className="w-4 h-4 text-orange-600" />
+                </button>
+                <button
                   onClick={handleShareProfile}
                   className="min-h-[36px] min-w-[36px] rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-600 flex items-center justify-center transition"
                   title="Share Profile"
@@ -325,6 +368,29 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onEditPost, onReportPo
             <span className="text-orange-700 font-semibold">{profile.category}</span>
             <span aria-hidden="true">·</span>
             <span>Artisan Studio</span>
+          </div>
+
+          {/* Star Rating & Reviews Badge */}
+          <div className="flex items-center gap-2 text-xs mt-2 flex-wrap">
+            <button
+              onClick={() => setActiveProfileTab('reviews')}
+              className="inline-flex items-center gap-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 px-2.5 py-1 rounded-xl transition active:scale-95 shadow-2xs"
+            >
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+              <span className="font-mono font-bold text-xs">{profile.rating?.toFixed(1) || '5.0'}</span>
+              <span className="text-[11px] text-amber-800">
+                ({profile.review_count || 0} {profile.review_count === 1 ? 'review' : 'reviews'})
+              </span>
+            </button>
+
+            {!isOwner && (
+              <button
+                onClick={() => openWriteReviewModal(profile.id)}
+                className="text-xs font-semibold text-orange-600 hover:text-orange-700 underline"
+              >
+                + Write a Review
+              </button>
+            )}
           </div>
         </div>
 
@@ -398,6 +464,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onEditPost, onReportPo
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <button
+                onClick={() => setActiveTab('insights')}
+                className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-orange-600 hover:bg-orange-700 text-white transition active:scale-95 flex items-center gap-1 shadow-2xs"
+              >
+                <BarChart2 className="w-3 h-3" />
+                <span>Insights Dashboard</span>
+              </button>
+              <button
                 onClick={() => setEditProfileModalOpen(true)}
                 className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white border border-stone-200 hover:border-orange-400 text-stone-800 transition active:scale-95 flex items-center gap-1 shadow-2xs"
               >
@@ -416,9 +489,43 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onEditPost, onReportPo
         )}
       </section>
 
-      {/* 2. Media Type Filters & Layout Controls */}
-      {canViewContent && (
-        <div className="flex items-center justify-between gap-2 mb-4 bg-stone-100/70 p-1 rounded-xl">
+      {/* User Feedback Survey Widget */}
+      <UserFeedbackSurveyWidget business={profile} />
+
+      {/* Primary Section Switcher: Showcases vs Reviews & Ratings */}
+      <div className="flex items-center gap-1.5 mb-4 bg-stone-200/70 p-1 rounded-2xl border border-stone-200">
+        <button
+          onClick={() => setActiveProfileTab('showcases')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+            activeProfileTab === 'showcases'
+              ? 'bg-white text-stone-900 shadow-xs'
+              : 'text-stone-600 hover:text-stone-900'
+          }`}
+        >
+          <Grid className="w-3.5 h-3.5" />
+          <span>Showcases ({profile.posts_count || 0})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveProfileTab('reviews')}
+          className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+            activeProfileTab === 'reviews'
+              ? 'bg-white text-stone-900 shadow-xs'
+              : 'text-stone-600 hover:text-stone-900'
+          }`}
+        >
+          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+          <span>Reviews & Ratings ({profile.review_count || 0})</span>
+        </button>
+      </div>
+
+      {activeProfileTab === 'reviews' ? (
+        <BusinessReviewsList business={profile} />
+      ) : (
+        <>
+          {/* 2. Media Type Filters & Layout Controls */}
+          {canViewContent && (
+            <div className="flex items-center justify-between gap-2 mb-4 bg-stone-100/70 p-1 rounded-xl">
           <div className="flex items-center gap-1">
             <button
               onClick={() => setMediaFilter('all')}
@@ -515,7 +622,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onEditPost, onReportPo
               {posts.map((post) => (
                 <div
                   key={post.id}
-                  onClick={() => setViewStyle('feed')}
+                  onClick={() => setSelectedPost(post)}
                   className="relative aspect-square rounded-xl overflow-hidden bg-stone-900 cursor-pointer group"
                 >
                   {post.media_type === 'image' && (
@@ -599,6 +706,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onEditPost, onReportPo
           </button>
         </div>
       )}
+      </>
+      )}
 
       {/* Followers & Following Modal */}
       <FollowersModal
@@ -607,6 +716,38 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onEditPost, onReportPo
         isOpen={followersModalOpen}
         onClose={() => setFollowersModalOpen(false)}
       />
+
+      {/* Market QR Code & Tabletop Stand Modal */}
+      <BusinessQRCodeModal
+        profile={profile}
+        isOpen={isQrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+      />
+
+      {/* Grid Showcase Lightbox / Detail Player Modal */}
+      {selectedPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl overflow-hidden shadow-2xl border border-stone-200">
+            <button
+              onClick={() => setSelectedPost(null)}
+              className="absolute top-3 right-3 z-30 p-2 rounded-full bg-black/60 hover:bg-black text-white transition shadow-md"
+              title="Close viewer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="max-h-[90vh] overflow-y-auto">
+              <PostCard
+                post={selectedPost}
+                onEdit={(p) => {
+                  setSelectedPost(null);
+                  onEditPost(p);
+                }}
+                onReport={onReportPost}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

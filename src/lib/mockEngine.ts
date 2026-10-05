@@ -14,9 +14,30 @@ import {
   StaffRole,
   VerificationRequest,
   PostView,
+  RetentionPolicy,
+  DeletionReason,
+  BusinessInsightsData,
+  DailyEngagementPoint,
+  PostMetricPoint,
+  MediaTypeBreakdown,
+  HourlyDistributionPoint,
+  MediaType,
+  Transaction,
+  TransactionStatus,
+  TransactionType,
+  PaymentMethod,
+  TransactionAuditLog,
+  FinancialSummary,
+  GeoLocationCoords,
+  BusinessReview,
+  SearchAutoSuggestion,
+  FeedbackSurvey,
+  FeedbackSurveyOption,
+  OnboardingTourRecord,
 } from '../types';
+import { calculateDistanceKm } from './locationData';
 
-const DB_STORAGE_KEY = 'amapati_db_v4';
+const DB_STORAGE_KEY = 'amapati_db_v10';
 
 export interface DatabaseState {
   profiles: Profile[];
@@ -32,17 +53,162 @@ export interface DatabaseState {
   staffRoles: StaffRole[];
   verificationRequests: VerificationRequest[];
   activityLogs: ActivityLog[];
+  retentionPolicies: RetentionPolicy[];
+  transactions: Transaction[];
+  transactionAuditLogs: TransactionAuditLog[];
+  reviews: BusinessReview[];
+  surveys: FeedbackSurvey[];
+  onboardingTours: OnboardingTourRecord[];
 }
 
+const INITIAL_RETENTION_POLICIES: RetentionPolicy[] = [
+  { content_type: 'post', deletion_reason: 'user_deleted', retention_days: 30 },
+  { content_type: 'post', deletion_reason: 'moderator_removed', retention_days: 14 },
+  { content_type: 'comment', deletion_reason: 'user_deleted', retention_days: 30 },
+  { content_type: 'comment', deletion_reason: 'moderator_removed', retention_days: 14 },
+];
+
 const INITIAL_PROFILES: Profile[] = [
+  {
+    id: 'user_endiro',
+    business_name: 'Endiro Coffee',
+    bio: 'Tree-to-cup Ugandan specialty Arabica coffee grown by women farmers on Mt. Elgon. Hand-poured Chemex, V60, and chilled cold brews.',
+    category: 'coffee',
+    contact: '+256 700 123456',
+    avatar_url: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=400&auto=format&fit=crop&q=80',
+    is_private: false,
+    location: 'Kololo, Kampala, Uganda',
+    country: 'UG',
+    district: 'ug_kololo',
+    city: 'Kampala',
+    latitude: 0.3276,
+    longitude: 32.5936,
+    is_verified: true,
+    created_at: '2026-09-15T08:00:00Z',
+    updated_at: '2026-09-15T08:00:00Z',
+  },
+  {
+    id: 'user_designhub',
+    business_name: 'Design Hub Kampala',
+    bio: 'Creative coworking warehouse, artisan maker market, open-air garden terrace, and cultural craft exhibitions in Industrial Area.',
+    category: 'hangouts',
+    contact: 'info@designhubkampala.com',
+    avatar_url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&auto=format&fit=crop&q=80',
+    is_private: false,
+    location: 'Bugolobi, Kampala, Uganda',
+    country: 'UG',
+    district: 'ug_bugolobi',
+    city: 'Kampala',
+    latitude: 0.3168,
+    longitude: 32.6247,
+    is_verified: true,
+    created_at: '2026-09-16T10:00:00Z',
+    updated_at: '2026-09-16T10:00:00Z',
+  },
+  {
+    id: 'user_thelawns',
+    business_name: 'The Lawns Restaurant & Lounge',
+    bio: 'Lush garden dining in Kololo serving East African grilled tilapia, fusion game meats, and handcrafted cocktails.',
+    category: 'restaurants',
+    contact: '+256 756 889900',
+    avatar_url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&auto=format&fit=crop&q=80',
+    is_private: false,
+    location: 'Kololo, Kampala, Uganda',
+    country: 'UG',
+    district: 'ug_kololo',
+    city: 'Kampala',
+    latitude: 0.3276,
+    longitude: 32.5936,
+    is_verified: true,
+    created_at: '2026-09-17T11:00:00Z',
+    updated_at: '2026-09-17T11:00:00Z',
+  },
+  {
+    id: 'user_events_kampala',
+    business_name: 'Kampala Craft & Vinyl Sundowner',
+    bio: 'Monthly weekend pop-up festival celebrating East African artisan crafts, acoustic live music, vinyl selectors & street food.',
+    category: 'events',
+    contact: 'events@kampalasundowner.ug',
+    avatar_url: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=400&auto=format&fit=crop&q=80',
+    is_private: false,
+    location: 'Bugolobi, Kampala, Uganda',
+    country: 'UG',
+    district: 'ug_bugolobi',
+    city: 'Kampala',
+    latitude: 0.3168,
+    longitude: 32.6247,
+    is_verified: true,
+    created_at: '2026-09-18T14:00:00Z',
+    updated_at: '2026-09-18T14:00:00Z',
+  },
+  {
+    id: 'user_1000cups',
+    business_name: '1000 Cups Coffee House',
+    bio: "Uganda's pioneering specialty coffee house. Single-origin Bugisu, Rwenzori Arabica & freshly roasted espresso in central Nakasero.",
+    category: 'coffee',
+    contact: '+256 414 345678',
+    avatar_url: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&auto=format&fit=crop&q=80',
+    is_private: false,
+    location: 'Nakasero, Kampala, Uganda',
+    country: 'UG',
+    district: 'ug_nakasero',
+    city: 'Kampala',
+    latitude: 0.3204,
+    longitude: 32.5768,
+    is_verified: true,
+    created_at: '2026-09-19T09:00:00Z',
+    updated_at: '2026-09-19T09:00:00Z',
+  },
+  {
+    id: 'user_32east',
+    business_name: '32° East | Ugandan Arts Trust',
+    bio: 'Center for contemporary art, community studios, clay workshops & peaceful courtyard coffee hangout in Ggaba.',
+    category: 'hangouts',
+    contact: 'hello@32east.org',
+    avatar_url: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400&auto=format&fit=crop&q=80',
+    is_private: false,
+    location: 'Muyenga & Ggaba, Kampala, Uganda',
+    country: 'UG',
+    district: 'ug_muyenga',
+    city: 'Kampala',
+    latitude: 0.2974,
+    longitude: 32.6148,
+    is_verified: true,
+    created_at: '2026-09-19T14:00:00Z',
+    updated_at: '2026-09-19T14:00:00Z',
+  },
+  {
+    id: 'user_cafejavas',
+    business_name: 'Cafe Javas Lugogo',
+    bio: 'Famous Kampala meeting spot. Gourmet breakfast skillets, craft iced coffees, fresh fruit smoothies, and late evening dining.',
+    category: 'restaurants',
+    contact: '+256 312 000111',
+    avatar_url: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=400&auto=format&fit=crop&q=80',
+    is_private: false,
+    location: 'Kampala Central, Uganda',
+    country: 'UG',
+    district: 'ug_kampala_central',
+    city: 'Kampala',
+    latitude: 0.3250,
+    longitude: 32.6050,
+    is_verified: true,
+    created_at: '2026-09-19T16:00:00Z',
+    updated_at: '2026-09-19T16:00:00Z',
+  },
   {
     id: 'user_coffee',
     business_name: 'Bella Terra Roasters',
     bio: 'Micro-batch single-origin coffees roasted weekly over cast iron. Ethically sourced from shade-grown highland farms.',
-    category: 'Coffee & Roasting',
+    category: 'coffee',
     contact: '+1 (555) 382-9901',
     avatar_url: '/src/assets/images/coffee_roaster_1790587302699.jpg',
     is_private: false,
+    location: 'Portland, OR, USA',
+    country: 'US',
+    district: 'us_portland',
+    city: 'Portland',
+    latitude: 45.5152,
+    longitude: -122.6784,
     is_verified: true,
     created_at: '2026-09-20T08:00:00Z',
     updated_at: '2026-09-20T08:00:00Z',
@@ -51,10 +217,16 @@ const INITIAL_PROFILES: Profile[] = [
     id: 'user_ceramics',
     business_name: 'Nadia Studio Ceramics',
     bio: 'Slow-crafted stoneware and functional tableware glazed with natural wood ash. Hand-thrown in our sunny courtyard workshop.',
-    category: 'Ceramics & Pottery',
+    category: 'crafts',
     contact: 'hello@nadiastudio.craft',
     avatar_url: '/src/assets/images/ceramic_studio_1790587319737.jpg',
     is_private: false,
+    location: 'Kyoto, Japan',
+    country: 'JP',
+    district: 'jp_kyoto',
+    city: 'Kyoto',
+    latitude: 35.0116,
+    longitude: 135.7681,
     is_verified: true,
     created_at: '2026-09-21T09:30:00Z',
     updated_at: '2026-09-21T09:30:00Z',
@@ -63,10 +235,16 @@ const INITIAL_PROFILES: Profile[] = [
     id: 'user_bakery',
     business_name: 'Levain & Crust Bakery',
     bio: '36-hour cold-fermented wild sourdough, morning cardamom buns, and seasonal stone-fruit galettes. Baked fresh before sunrise.',
-    category: 'Bakery & Pastry',
+    category: 'bakery',
     contact: 'order@levaincrust.com',
     avatar_url: '/src/assets/images/bakery_pastry_1790587333429.jpg',
     is_private: false,
+    location: 'Paris, France',
+    country: 'FR',
+    district: 'fr_paris',
+    city: 'Paris',
+    latitude: 48.8566,
+    longitude: 2.3522,
     is_verified: false,
     created_at: '2026-09-22T05:00:00Z',
     updated_at: '2026-09-22T05:00:00Z',
@@ -75,10 +253,16 @@ const INITIAL_PROFILES: Profile[] = [
     id: 'user_leather',
     business_name: 'Sartoria Bespoke Goods',
     bio: 'Hand-stitched vegetable-tanned leather totes, briefcases, and brass-buckled belts. Built with heirloom durability.',
-    category: 'Leather & Tailoring',
+    category: 'leather',
     contact: '+1 (555) 891-2300',
     avatar_url: '/src/assets/images/leather_tailor_1790587348791.jpg',
     is_private: false,
+    location: 'Milan, Italy',
+    country: 'IT',
+    district: 'it_milan',
+    city: 'Milan',
+    latitude: 45.4642,
+    longitude: 9.1900,
     is_verified: false,
     created_at: '2026-09-23T11:15:00Z',
     updated_at: '2026-09-23T11:15:00Z',
@@ -87,10 +271,16 @@ const INITIAL_PROFILES: Profile[] = [
     id: 'user_admin',
     business_name: 'Amapati Staff & Trust',
     bio: 'Official Amapati community moderation and business verification team.',
-    category: 'Creative Services',
+    category: 'services',
     contact: 'trust@amapati.app',
     avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
     is_private: false,
+    location: 'San Francisco, CA, USA',
+    country: 'US',
+    district: 'us_sf',
+    city: 'San Francisco',
+    latitude: 37.7749,
+    longitude: -122.4194,
     is_verified: true,
     created_at: '2026-09-18T00:00:00Z',
     updated_at: '2026-09-18T00:00:00Z',
@@ -118,6 +308,66 @@ const INITIAL_POSTS: Post[] = [
     trending_updated_at: '2026-09-28T03:00:00Z',
   },
   {
+    id: 'post_coffee_2',
+    user_id: 'user_coffee',
+    media_type: 'video',
+    media_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    thumbnail_url: '/src/assets/images/coffee_roaster_1790587302699.jpg',
+    caption: 'Cupping table ritual: scoring acidity, sweetness, and tactile finish across four single-origin harvests from Huila, Colombia.',
+    duration: 20,
+    is_deleted: false,
+    created_at: '2026-09-29T11:15:00Z',
+    updated_at: '2026-09-29T11:15:00Z',
+    likes_count: 84,
+    like_count: 84,
+    comments_count: 7,
+    comment_count: 7,
+    view_count: 410,
+    share_count: 18,
+    save_count: 29,
+    trending_score: 38.6,
+    trending_updated_at: '2026-09-29T12:00:00Z',
+  },
+  {
+    id: 'post_coffee_3',
+    user_id: 'user_coffee',
+    media_type: 'image',
+    media_url: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&auto=format&fit=crop&q=80',
+    caption: 'Slow extraction cold brew tower running over 14 hours. Japanese Kyoto-style slow drip reveals incredible sweetness without bitterness.',
+    is_deleted: false,
+    created_at: '2026-09-26T14:00:00Z',
+    updated_at: '2026-09-26T14:00:00Z',
+    likes_count: 31,
+    like_count: 31,
+    comments_count: 2,
+    comment_count: 2,
+    view_count: 165,
+    share_count: 6,
+    save_count: 11,
+    trending_score: 14.2,
+    trending_updated_at: '2026-09-27T01:00:00Z',
+  },
+  {
+    id: 'post_coffee_4',
+    user_id: 'user_coffee',
+    media_type: 'audio',
+    media_url: 'https://actions.google.com/sounds/v1/water/rain_heavy.ogg',
+    caption: 'Roaster notes audio log: Listening for the subtle difference between yellowing phase and exothermic first crack in cast iron.',
+    duration: 45,
+    is_deleted: false,
+    created_at: '2026-09-25T08:30:00Z',
+    updated_at: '2026-09-25T08:30:00Z',
+    likes_count: 26,
+    like_count: 26,
+    comments_count: 4,
+    comment_count: 4,
+    view_count: 120,
+    share_count: 4,
+    save_count: 9,
+    trending_score: 9.8,
+    trending_updated_at: '2026-09-26T00:00:00Z',
+  },
+  {
     id: 'post_2',
     user_id: 'user_ceramics',
     media_type: 'image',
@@ -135,6 +385,27 @@ const INITIAL_POSTS: Post[] = [
     save_count: 25,
     trending_score: 26.8,
     trending_updated_at: '2026-09-28T03:00:00Z',
+  },
+  {
+    id: 'post_ceramics_2',
+    user_id: 'user_ceramics',
+    media_type: 'video',
+    media_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    thumbnail_url: '/src/assets/images/ceramic_studio_1790587319737.jpg',
+    caption: 'Centering and opening 3.5kg of local stoneware for our new sculptural planters. The rhythm of clay at 90 RPM.',
+    duration: 18,
+    is_deleted: false,
+    created_at: '2026-09-29T14:30:00Z',
+    updated_at: '2026-09-29T14:30:00Z',
+    likes_count: 112,
+    like_count: 112,
+    comments_count: 8,
+    comment_count: 8,
+    view_count: 490,
+    share_count: 22,
+    save_count: 38,
+    trending_score: 41.5,
+    trending_updated_at: '2026-09-29T15:00:00Z',
   },
   {
     id: 'post_3',
@@ -158,6 +429,25 @@ const INITIAL_POSTS: Post[] = [
     trending_updated_at: '2026-09-28T03:00:00Z',
   },
   {
+    id: 'post_bakery_2',
+    user_id: 'user_bakery',
+    media_type: 'image',
+    media_url: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&auto=format&fit=crop&q=80',
+    caption: 'Cardamom morning buns rolled with fresh-ground green cardamom seeds and cultured French butter.',
+    is_deleted: false,
+    created_at: '2026-09-28T06:45:00Z',
+    updated_at: '2026-09-28T06:45:00Z',
+    likes_count: 73,
+    like_count: 73,
+    comments_count: 5,
+    comment_count: 5,
+    view_count: 320,
+    share_count: 14,
+    save_count: 22,
+    trending_score: 28.1,
+    trending_updated_at: '2026-09-28T08:00:00Z',
+  },
+  {
     id: 'post_4',
     user_id: 'user_leather',
     media_type: 'image',
@@ -175,6 +465,208 @@ const INITIAL_POSTS: Post[] = [
     save_count: 11,
     trending_score: 11.2,
     trending_updated_at: '2026-09-28T03:00:00Z',
+  },
+  {
+    id: 'post_leather_2',
+    user_id: 'user_leather',
+    media_type: 'video',
+    media_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    thumbnail_url: '/src/assets/images/leather_tailor_1790587348791.jpg',
+    caption: 'Edge burnishing vegetable tanned leather with natural beeswax and hard boxwood slicker. Glossy water-resistant edges.',
+    duration: 16,
+    is_deleted: false,
+    created_at: '2026-09-28T16:00:00Z',
+    updated_at: '2026-09-28T16:00:00Z',
+    likes_count: 67,
+    like_count: 67,
+    comments_count: 4,
+    comment_count: 4,
+    view_count: 280,
+    share_count: 11,
+    save_count: 24,
+    trending_score: 24.3,
+    trending_updated_at: '2026-09-28T17:00:00Z',
+  },
+  {
+    id: 'post_ug_endiro_1',
+    user_id: 'user_endiro',
+    media_type: 'video',
+    media_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    thumbnail_url: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&auto=format&fit=crop&q=80',
+    caption: 'Pouring fresh Mt. Elgon Bukonzo Arabica through the Chemex on our Kololo garden deck. Notes of blackcurrant, wild honey, and citrus zest. Sourced directly from women coffee growers in Mbale.',
+    location: 'Kololo, Kampala, Uganda',
+    country: 'UG',
+    district: 'ug_kololo',
+    city: 'Kampala',
+    latitude: 0.3276,
+    longitude: 32.5936,
+    duration: 22,
+    is_deleted: false,
+    created_at: '2026-09-29T08:00:00Z',
+    updated_at: '2026-09-29T08:00:00Z',
+    likes_count: 94,
+    like_count: 94,
+    comments_count: 6,
+    comment_count: 6,
+    view_count: 520,
+    share_count: 19,
+    save_count: 34,
+    trending_score: 44.2,
+    trending_updated_at: '2026-09-29T09:00:00Z',
+  },
+  {
+    id: 'post_ug_events_1',
+    user_id: 'user_events_kampala',
+    media_type: 'image',
+    media_url: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=800&auto=format&fit=crop&q=80',
+    caption: 'This Saturday at the Bugolobi Warehouse: Kampala Craft & Vinyl Sundowner! 20+ independent local makers, live acoustic Kora sets, craft ciders, and vinyl selectors from 2 PM till late.',
+    location: 'Bugolobi, Kampala, Uganda',
+    country: 'UG',
+    district: 'ug_bugolobi',
+    city: 'Kampala',
+    latitude: 0.3168,
+    longitude: 32.6247,
+    is_deleted: false,
+    created_at: '2026-09-29T10:30:00Z',
+    updated_at: '2026-09-29T10:30:00Z',
+    likes_count: 145,
+    like_count: 145,
+    comments_count: 12,
+    comment_count: 12,
+    view_count: 780,
+    share_count: 38,
+    save_count: 55,
+    trending_score: 58.7,
+    trending_updated_at: '2026-09-29T11:00:00Z',
+  },
+  {
+    id: 'post_ug_thelawns_1',
+    user_id: 'user_thelawns',
+    media_type: 'video',
+    media_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    thumbnail_url: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=800&auto=format&fit=crop&q=80',
+    caption: 'Dinner under the Kololo acacia canopy. Whole charcoal-grilled Lake Victoria Tilapia marinated in lemongrass, ginger & local chili glaze with sweet plantain crisps.',
+    location: 'Kololo, Kampala, Uganda',
+    country: 'UG',
+    district: 'ug_kololo',
+    city: 'Kampala',
+    latitude: 0.3276,
+    longitude: 32.5936,
+    duration: 19,
+    is_deleted: false,
+    created_at: '2026-09-28T19:00:00Z',
+    updated_at: '2026-09-28T19:00:00Z',
+    likes_count: 118,
+    like_count: 118,
+    comments_count: 8,
+    comment_count: 8,
+    view_count: 640,
+    share_count: 25,
+    save_count: 41,
+    trending_score: 48.9,
+    trending_updated_at: '2026-09-28T20:00:00Z',
+  },
+  {
+    id: 'post_ug_designhub_1',
+    user_id: 'user_designhub',
+    media_type: 'image',
+    media_url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&auto=format&fit=crop&q=80',
+    caption: 'Open studio Friday at Design Hub Bugolobi! Resident woodcarvers, bark cloth artisans, and sustainable textile makers are showcasing their newest creations. Grab an iced cold brew and explore.',
+    location: 'Bugolobi, Kampala, Uganda',
+    country: 'UG',
+    district: 'ug_bugolobi',
+    city: 'Kampala',
+    latitude: 0.3168,
+    longitude: 32.6247,
+    is_deleted: false,
+    created_at: '2026-09-28T14:15:00Z',
+    updated_at: '2026-09-28T14:15:00Z',
+    likes_count: 82,
+    like_count: 82,
+    comments_count: 5,
+    comment_count: 5,
+    view_count: 430,
+    share_count: 14,
+    save_count: 28,
+    trending_score: 32.5,
+    trending_updated_at: '2026-09-28T15:00:00Z',
+  },
+  {
+    id: 'post_ug_1000cups_1',
+    user_id: 'user_1000cups',
+    media_type: 'image',
+    media_url: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800&auto=format&fit=crop&q=80',
+    caption: 'Traditional clay pot coffee brewing with fresh ginger & cardamom pods on Nakasero Hill. Celebrating 20 years of championing Bugisu AA and Rwenzori single origin beans.',
+    location: 'Nakasero, Kampala, Uganda',
+    country: 'UG',
+    district: 'ug_nakasero',
+    city: 'Kampala',
+    latitude: 0.3204,
+    longitude: 32.5768,
+    is_deleted: false,
+    created_at: '2026-09-28T09:00:00Z',
+    updated_at: '2026-09-28T09:00:00Z',
+    likes_count: 97,
+    like_count: 97,
+    comments_count: 7,
+    comment_count: 7,
+    view_count: 510,
+    share_count: 21,
+    save_count: 36,
+    trending_score: 37.1,
+    trending_updated_at: '2026-09-28T10:00:00Z',
+  },
+  {
+    id: 'post_ug_32east_1',
+    user_id: 'user_32east',
+    media_type: 'video',
+    media_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    thumbnail_url: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&auto=format&fit=crop&q=80',
+    caption: 'Community clay sculpting and ceramic glazing session on the courtyard lawn in Muyenga overlooking Lake Victoria. Free public creative workshop every second Saturday.',
+    location: 'Muyenga & Ggaba, Kampala, Uganda',
+    country: 'UG',
+    district: 'ug_muyenga',
+    city: 'Kampala',
+    latitude: 0.2974,
+    longitude: 32.6148,
+    duration: 24,
+    is_deleted: false,
+    created_at: '2026-09-27T16:00:00Z',
+    updated_at: '2026-09-27T16:00:00Z',
+    likes_count: 76,
+    like_count: 76,
+    comments_count: 4,
+    comment_count: 4,
+    view_count: 390,
+    share_count: 12,
+    save_count: 22,
+    trending_score: 30.2,
+    trending_updated_at: '2026-09-27T17:00:00Z',
+  },
+  {
+    id: 'post_ug_cafejavas_1',
+    user_id: 'user_cafejavas',
+    media_type: 'image',
+    media_url: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&auto=format&fit=crop&q=80',
+    caption: 'Weekend brunch favorites: Belgian waffle towers with passion fruit coulis, fresh avocado sourdough melt, and our signature iced Mocha Caramel crunch.',
+    location: 'Kampala Central, Uganda',
+    country: 'UG',
+    district: 'ug_kampala_central',
+    city: 'Kampala',
+    latitude: 0.3250,
+    longitude: 32.6050,
+    is_deleted: false,
+    created_at: '2026-09-29T12:00:00Z',
+    updated_at: '2026-09-29T12:00:00Z',
+    likes_count: 132,
+    like_count: 132,
+    comments_count: 10,
+    comment_count: 10,
+    view_count: 710,
+    share_count: 31,
+    save_count: 49,
+    trending_score: 52.4,
+    trending_updated_at: '2026-09-29T13:00:00Z',
   },
 ];
 
@@ -380,6 +872,413 @@ const INITIAL_LOGS: ActivityLog[] = [
   },
 ];
 
+const INITIAL_TRANSACTIONS: Transaction[] = [
+  {
+    id: 'tx_01',
+    reference_id: 'TXN-2026-1049',
+    buyer_id: 'user_bakery',
+    seller_id: 'user_coffee',
+    item_type: 'craft_order',
+    item_title: 'Ethiopian Yirgacheffe Washed - 5 lb Wholesale Batch',
+    post_id: 'post_1',
+    amount_cents: 9500, // $95.00
+    fee_cents: 475,     // 5% platform fee ($4.75)
+    payout_cents: 9025, // Net to artisan ($90.25)
+    currency: 'USD',
+    status: 'settled',
+    payment_method: 'direct_transfer',
+    notes: 'Standing weekly bakery espresso bean order.',
+    created_at: '2026-09-27T10:00:00Z',
+    settled_at: '2026-09-27T10:05:00Z',
+    customer_email: 'order@levaincrust.com',
+    shipping_address: '14 Rue Saint-Dominique, Paris, France',
+  },
+  {
+    id: 'tx_02',
+    reference_id: 'TXN-2026-1050',
+    buyer_id: 'user_coffee',
+    seller_id: 'user_ceramics',
+    item_type: 'custom_commission',
+    item_title: 'Hand-thrown Wood Ash Ceramic Espresso Cups (Set of 6)',
+    post_id: 'post_2',
+    amount_cents: 18000, // $180.00
+    fee_cents: 900,
+    payout_cents: 17100,
+    currency: 'USD',
+    status: 'settled',
+    payment_method: 'apple_pay',
+    notes: 'Custom unglazed rim, stamped with Bella Terra insignia.',
+    created_at: '2026-09-28T09:15:00Z',
+    settled_at: '2026-09-28T09:20:00Z',
+    customer_email: 'marco@bellaterraroasters.com',
+    shipping_address: '840 SE Water Ave, Portland, OR 97214',
+  },
+  {
+    id: 'tx_03',
+    reference_id: 'TXN-2026-1051',
+    buyer_id: 'user_leather',
+    seller_id: 'user_woodwork',
+    item_type: 'craft_order',
+    item_title: 'Reclaimed Oregon Walnut Leatherworking Cutting Slab',
+    amount_cents: 24000, // $240.00
+    fee_cents: 1200,
+    payout_cents: 22800,
+    currency: 'USD',
+    status: 'settled',
+    payment_method: 'credit_card',
+    notes: 'Beeswax and mineral oil food-safe finish.',
+    created_at: '2026-09-28T14:30:00Z',
+    settled_at: '2026-09-28T14:35:00Z',
+    customer_email: 'atelier@sartoriabespoke.com',
+  },
+  {
+    id: 'tx_04',
+    reference_id: 'TXN-2026-1052',
+    buyer_id: 'user_flora',
+    seller_id: 'user_coffee',
+    item_type: 'workshop_ticket',
+    item_title: 'Home Barista Masterclass & Sensory Cupping (2 Seats)',
+    post_id: 'post_coffee_2',
+    amount_cents: 12000, // $120.00
+    fee_cents: 600,
+    payout_cents: 11400,
+    currency: 'USD',
+    status: 'settled',
+    payment_method: 'credit_card',
+    notes: 'Saturday 10am cupping session.',
+    created_at: '2026-09-29T11:00:00Z',
+    settled_at: '2026-09-29T11:02:00Z',
+    customer_email: 'claire@urbanmeadowflora.com',
+  },
+  {
+    id: 'tx_05',
+    reference_id: 'TXN-2026-1053',
+    buyer_id: 'user_coffee',
+    seller_id: 'user_leather',
+    item_type: 'craft_order',
+    item_title: 'Full-Grain Vegetable Tanned Barista Apron with Brass Rings',
+    amount_cents: 16500, // $165.00
+    fee_cents: 825,
+    payout_cents: 15675,
+    currency: 'USD',
+    status: 'pending',
+    payment_method: 'credit_card',
+    notes: 'Awaiting bespoke stitching completion.',
+    created_at: '2026-09-30T16:20:00Z',
+    customer_email: 'marco@bellaterraroasters.com',
+  },
+  {
+    id: 'tx_06',
+    reference_id: 'TXN-2026-1054',
+    buyer_id: 'user_woodwork',
+    seller_id: 'user_bakery',
+    item_type: 'booth_sale',
+    item_title: 'Artisan Farmers Market Breakfast Pastry Box & 2 Sourdough Loaves',
+    amount_cents: 4800, // $48.00
+    fee_cents: 240,
+    payout_cents: 4560,
+    currency: 'USD',
+    status: 'settled',
+    payment_method: 'market_cash',
+    notes: 'Weekend marketplace booth purchase.',
+    created_at: '2026-10-01T08:45:00Z',
+    settled_at: '2026-10-01T08:45:00Z',
+  },
+  {
+    id: 'tx_07',
+    reference_id: 'TXN-2026-1055',
+    buyer_id: 'user_flora',
+    seller_id: 'user_ceramics',
+    item_type: 'custom_commission',
+    item_title: 'Fluted Botanical Stoneware Planter Pots (3 Sizes)',
+    amount_cents: 21000, // $210.00
+    fee_cents: 1050,
+    payout_cents: 19950,
+    currency: 'USD',
+    status: 'pending',
+    payment_method: 'direct_transfer',
+    notes: 'Custom drainage hole and matching saucers.',
+    created_at: '2026-10-01T15:10:00Z',
+    customer_email: 'claire@urbanmeadowflora.com',
+  },
+  {
+    id: 'tx_08',
+    reference_id: 'TXN-2026-1056',
+    buyer_id: 'user_bakery',
+    seller_id: 'user_flora',
+    item_type: 'craft_order',
+    item_title: 'Edible Organic Flower Blossom Box for Pastry Finishing',
+    amount_cents: 6500, // $65.00
+    fee_cents: 325,
+    payout_cents: 6175,
+    currency: 'USD',
+    status: 'refunded',
+    payment_method: 'apple_pay',
+    notes: 'Delivered in transit during extreme heat. Full refund issued by administrator.',
+    created_at: '2026-09-25T13:00:00Z',
+    settled_at: '2026-09-25T13:05:00Z',
+    refunded_at: '2026-09-26T09:30:00Z',
+    customer_email: 'order@levaincrust.com',
+  },
+  {
+    id: 'tx_09',
+    reference_id: 'TXN-2026-1057',
+    buyer_id: 'user_ceramics',
+    seller_id: 'user_leather',
+    item_type: 'craft_order',
+    item_title: 'Bespoke Tool Roll for Pottery Carving & Trimming Ribs',
+    amount_cents: 11500, // $115.00
+    fee_cents: 575,
+    payout_cents: 10925,
+    currency: 'USD',
+    status: 'disputed',
+    payment_method: 'credit_card',
+    notes: 'Customer reported pocket dimension mismatch with carving tools.',
+    dispute_reason: 'Pocket slot width variance exceeds bespoke tolerances.',
+    created_at: '2026-09-29T18:00:00Z',
+    disputed_at: '2026-09-30T10:00:00Z',
+    customer_email: 'hello@nadiastudio.craft',
+  },
+  {
+    id: 'tx_10',
+    reference_id: 'TXN-2026-1058',
+    buyer_id: 'user_coffee',
+    seller_id: 'user_woodwork',
+    item_type: 'patronage_tip',
+    item_title: 'Patronage Support: Heritage Cedar Tree Planting Project',
+    amount_cents: 5000, // $50.00
+    fee_cents: 250,
+    payout_cents: 4750,
+    currency: 'USD',
+    status: 'settled',
+    payment_method: 'apple_pay',
+    notes: 'Direct workshop sponsorship.',
+    created_at: '2026-10-02T02:00:00Z',
+    settled_at: '2026-10-02T02:01:00Z',
+    customer_email: 'marco@bellaterraroasters.com',
+  },
+];
+
+const INITIAL_TRANSACTION_AUDIT_LOGS: TransactionAuditLog[] = [
+  {
+    id: 'tx_log_1',
+    transaction_id: 'tx_01',
+    reference_id: 'TXN-2026-1049',
+    admin_id: 'user_admin',
+    admin_name: 'Amapati Guild Trust Administrator',
+    action: 'settled',
+    previous_status: 'pending',
+    new_status: 'settled',
+    amount_affected_cents: 9500,
+    reason: 'Delivery confirmed and automatic payout released to Bella Terra Roasters.',
+    created_at: '2026-09-27T10:05:00Z',
+  },
+  {
+    id: 'tx_log_2',
+    transaction_id: 'tx_08',
+    reference_id: 'TXN-2026-1056',
+    admin_id: 'user_admin',
+    admin_name: 'Amapati Guild Trust Administrator',
+    action: 'refunded',
+    previous_status: 'settled',
+    new_status: 'refunded',
+    amount_affected_cents: 6500,
+    reason: 'Heat damage claim accepted. Full $65.00 refunded to buyer.',
+    created_at: '2026-09-26T09:30:00Z',
+  },
+  {
+    id: 'tx_log_3',
+    transaction_id: 'tx_09',
+    reference_id: 'TXN-2026-1057',
+    admin_id: 'user_admin',
+    admin_name: 'Amapati Guild Trust Administrator',
+    action: 'disputed',
+    previous_status: 'pending',
+    new_status: 'disputed',
+    amount_affected_cents: 11500,
+    reason: 'Buyer opened dispute regarding custom carving tool pocket dimensions.',
+    created_at: '2026-09-30T10:00:00Z',
+  },
+];
+
+const INITIAL_REVIEWS: BusinessReview[] = [
+  {
+    id: 'rev_01',
+    business_id: 'user_endiro',
+    user_id: 'user_coffee',
+    author_name: 'Bella Terra Roasters',
+    author_avatar: '/src/assets/images/coffee_roaster_1790587302699.jpg',
+    rating: 5,
+    title: 'Flawless single-origin Mt. Elgon Bukonzo Arabica!',
+    comment: 'Stopped by their Kololo leafy garden deck and ordered the Chemex pour-over. Outstanding clarity with notes of blackcurrant, raw cane sugar, and citrus zest. A true model of ethical tree-to-cup coffee supporting women farmers.',
+    tags: ['Single-origin Bugisu', 'Flawless Chemex pour', 'Cozy garden patio'],
+    helpful_votes: 14,
+    helpful_user_ids: ['user_ceramics', 'user_thelawns'],
+    is_verified_patron: true,
+    visit_date: 'September 2026',
+    created_at: '2026-09-29T12:00:00Z',
+  },
+  {
+    id: 'rev_02',
+    business_id: 'user_thelawns',
+    user_id: 'user_bakery',
+    author_name: 'Levain & Crust Bakery',
+    author_avatar: '/src/assets/images/bakery_pastry_1790587333429.jpg',
+    rating: 5,
+    title: 'The acacia canopy dinner was pure magic',
+    comment: 'The whole grilled Lake Victoria tilapia marinated in lemongrass and local chili was cooked to perfection. Crispy sweet plantains on the side. The romantic garden ambiance in Kololo is world class.',
+    tags: ['Fresh Lake Victoria Tilapia', 'Lush acacia garden', 'Sweet plantain crisps'],
+    helpful_votes: 19,
+    helpful_user_ids: ['user_endiro', 'user_coffee'],
+    is_verified_patron: true,
+    visit_date: 'September 2026',
+    created_at: '2026-09-29T14:30:00Z',
+  },
+  {
+    id: 'rev_03',
+    business_id: 'user_events_kampala',
+    user_id: 'user_leather',
+    author_name: 'Sartoria Bespoke Goods',
+    author_avatar: '/src/assets/images/leather_tailor_1790587348791.jpg',
+    rating: 5,
+    title: 'Unbeatable Saturday afternoon energy in Bugolobi',
+    comment: 'The acoustic Kora set paired with vinyl DJ selections was transcendent. We had a booth showcasing our leather craft and the community response was sensational. Can not wait for next month!',
+    tags: ['Vibrant weekend energy', 'Curated vinyl selectors', 'Live acoustic Kora'],
+    helpful_votes: 22,
+    helpful_user_ids: ['user_designhub', 'user_32east'],
+    is_verified_patron: true,
+    visit_date: 'September 2026',
+    created_at: '2026-09-29T16:00:00Z',
+  },
+  {
+    id: 'rev_04',
+    business_id: 'user_designhub',
+    user_id: 'user_ceramics',
+    author_name: 'Nadia Studio Ceramics',
+    author_avatar: '/src/assets/images/ceramic_studio_1790587319737.jpg',
+    rating: 5,
+    title: 'An inspiring creative industrial haven in Kampala',
+    comment: 'Design Hub Bugolobi is the creative heartbeat of the city. Loved seeing the bark cloth artisans, prototype makers, and open terrace discussions. Great cold brew and friendly maker community.',
+    tags: ['Creative community', 'Inspiring open studios', 'Great artisan workshops'],
+    helpful_votes: 11,
+    helpful_user_ids: ['user_events_kampala'],
+    is_verified_patron: true,
+    visit_date: 'September 2026',
+    created_at: '2026-09-28T18:00:00Z',
+  },
+  {
+    id: 'rev_05',
+    business_id: 'user_1000cups',
+    user_id: 'user_coffee',
+    author_name: 'Bella Terra Roasters',
+    author_avatar: '/src/assets/images/coffee_roaster_1790587302699.jpg',
+    rating: 5,
+    title: 'Historic Nakasero coffee shrine with authentic clay pots',
+    comment: 'Traditional clay pot coffee brewed with ginger and cardamom pods right in front of you. 20 years of championing Ugandan coffee farmers shines through every pour.',
+    tags: ['Single-origin Bugisu', 'Rich crema', 'Authentic craft'],
+    helpful_votes: 16,
+    helpful_user_ids: ['user_endiro'],
+    is_verified_patron: true,
+    visit_date: 'September 2026',
+    created_at: '2026-09-28T11:00:00Z',
+  },
+  {
+    id: 'rev_06',
+    business_id: 'user_32east',
+    user_id: 'user_ceramics',
+    author_name: 'Nadia Studio Ceramics',
+    author_avatar: '/src/assets/images/ceramic_studio_1790587319737.jpg',
+    rating: 5,
+    title: 'Peaceful contemporary art and clay workshop sanctuary',
+    comment: 'The view over Lake Victoria from Muyenga Tank Hill combined with open-air clay sculpting sessions is truly therapeutic. A priceless community art space.',
+    tags: ['Lake Victoria breeze', 'Peaceful courtyard', 'Great artisan workshops'],
+    helpful_votes: 8,
+    helpful_user_ids: ['user_designhub'],
+    is_verified_patron: true,
+    visit_date: 'September 2026',
+    created_at: '2026-09-27T19:00:00Z',
+  },
+  {
+    id: 'rev_07',
+    business_id: 'user_cafejavas',
+    user_id: 'user_thelawns',
+    author_name: 'The Lawns Restaurant & Lounge',
+    author_avatar: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400&auto=format&fit=crop&q=80',
+    rating: 5,
+    title: 'Legendary brunch and signature iced mocha',
+    comment: 'Consistent excellence at Lugogo. Fast table service, generous breakfast skillets, and their signature mocha caramel crunch is always a hit.',
+    tags: ['Attentive service', 'Flavorful marinades'],
+    helpful_votes: 15,
+    helpful_user_ids: ['user_endiro'],
+    is_verified_patron: true,
+    visit_date: 'September 2026',
+    created_at: '2026-09-29T15:00:00Z',
+  },
+];
+
+const INITIAL_SURVEYS: FeedbackSurvey[] = [
+  {
+    id: 'survey_endiro',
+    business_id: 'user_endiro',
+    question: 'Which new single-origin coffee roast should we feature on the Kololo brew bar next month?',
+    category: 'Future Product Drop',
+    options: [
+      { id: 'opt_1', text: 'Rwenzori Mountain Natural (Strawberry & Cacao)', votes: 28 },
+      { id: 'opt_2', text: 'Bugisu Peaberry Honey Process (Brown Sugar & Lime)', votes: 21 },
+      { id: 'opt_3', text: 'Zombo Arabica Washed (Jasmine & Bergamot)', votes: 14 },
+    ],
+    total_votes: 63,
+    voter_user_ids: { user_coffee: 'opt_1', user_bakery: 'opt_2' },
+    is_active: true,
+    created_at: '2026-09-30T10:00:00Z',
+  },
+  {
+    id: 'survey_thelawns',
+    business_id: 'user_thelawns',
+    question: 'What new seasonal dining creation would you like to see under the garden acacia canopy?',
+    category: 'New Menu Concept',
+    options: [
+      { id: 'opt_1', text: 'Whole Grilled Tilapia with Ginger Tamarind Glaze', votes: 34 },
+      { id: 'opt_2', text: 'Slow-Smoked Kigezi Ribs with Sweet Plantain Mash', votes: 29 },
+      { id: 'opt_3', text: 'Wood-Fired Garden Flatbread with Nile Herbs', votes: 16 },
+    ],
+    total_votes: 79,
+    voter_user_ids: {},
+    is_active: true,
+    created_at: '2026-09-29T14:00:00Z',
+  },
+  {
+    id: 'survey_designhub',
+    business_id: 'user_designhub',
+    question: 'Which artisan craft masterclass should we schedule for the next Bugolobi weekend session?',
+    category: 'Patron Workshop',
+    options: [
+      { id: 'opt_1', text: 'Hand-thrown Stoneware Pottery & Wheel Technique', votes: 44 },
+      { id: 'opt_2', text: 'Traditional Bark Cloth Textile & Pattern Dyeing', votes: 27 },
+      { id: 'opt_3', text: 'Specialty Espresso Cupping & Sensory Workshop', votes: 19 },
+    ],
+    total_votes: 90,
+    voter_user_ids: {},
+    is_active: true,
+    created_at: '2026-09-28T09:00:00Z',
+  },
+  {
+    id: 'survey_1000cups',
+    business_id: 'user_1000cups',
+    question: 'What traditional spice infusion should we pair with our Nakasero clay pot brew?',
+    category: 'Artisan Experiment',
+    options: [
+      { id: 'opt_1', text: 'Spiced Ginger Root & Cardamom Pods', votes: 38 },
+      { id: 'opt_2', text: 'Wild Forest Honey & Clove', votes: 22 },
+      { id: 'opt_3', text: 'Pure Single-Origin Unspiced Bugisu', votes: 17 },
+    ],
+    total_votes: 77,
+    voter_user_ids: {},
+    is_active: true,
+    created_at: '2026-09-28T11:00:00Z',
+  },
+];
+
 export class LocalDatabase {
   private state: DatabaseState;
 
@@ -403,6 +1302,12 @@ export class LocalDatabase {
         staffRoles: INITIAL_STAFF_ROLES,
         verificationRequests: INITIAL_VERIFICATION_REQUESTS,
         activityLogs: INITIAL_LOGS,
+        retentionPolicies: INITIAL_RETENTION_POLICIES,
+        transactions: INITIAL_TRANSACTIONS,
+        transactionAuditLogs: INITIAL_TRANSACTION_AUDIT_LOGS,
+        reviews: INITIAL_REVIEWS,
+        surveys: INITIAL_SURVEYS,
+        onboardingTours: [],
       };
     }
 
@@ -412,7 +1317,7 @@ export class LocalDatabase {
         const parsed = JSON.parse(raw);
         return {
           profiles: parsed.profiles || INITIAL_PROFILES,
-          posts: parsed.posts || INITIAL_POSTS,
+          posts: parsed.posts && parsed.posts.length >= INITIAL_POSTS.length ? parsed.posts : INITIAL_POSTS,
           postViews: parsed.postViews || [],
           follows: parsed.follows || INITIAL_FOLLOWS,
           blocks: parsed.blocks || [],
@@ -424,6 +1329,24 @@ export class LocalDatabase {
           staffRoles: parsed.staffRoles || INITIAL_STAFF_ROLES,
           verificationRequests: parsed.verificationRequests || INITIAL_VERIFICATION_REQUESTS,
           activityLogs: parsed.activityLogs || INITIAL_LOGS,
+          retentionPolicies: parsed.retentionPolicies || INITIAL_RETENTION_POLICIES,
+          transactions:
+            parsed.transactions && parsed.transactions.length > 0
+              ? parsed.transactions
+              : INITIAL_TRANSACTIONS,
+          transactionAuditLogs:
+            parsed.transactionAuditLogs && parsed.transactionAuditLogs.length > 0
+              ? parsed.transactionAuditLogs
+              : INITIAL_TRANSACTION_AUDIT_LOGS,
+          reviews:
+            parsed.reviews && parsed.reviews.length > 0
+              ? parsed.reviews
+              : INITIAL_REVIEWS,
+          surveys:
+            parsed.surveys && parsed.surveys.length > 0
+              ? parsed.surveys
+              : INITIAL_SURVEYS,
+          onboardingTours: parsed.onboardingTours || [],
         };
       }
     } catch (e) {
@@ -444,6 +1367,12 @@ export class LocalDatabase {
       staffRoles: INITIAL_STAFF_ROLES,
       verificationRequests: INITIAL_VERIFICATION_REQUESTS,
       activityLogs: INITIAL_LOGS,
+      retentionPolicies: INITIAL_RETENTION_POLICIES,
+      transactions: INITIAL_TRANSACTIONS,
+      transactionAuditLogs: INITIAL_TRANSACTION_AUDIT_LOGS,
+      reviews: INITIAL_REVIEWS,
+      surveys: INITIAL_SURVEYS,
+      onboardingTours: [],
     };
     this.saveState(initial);
     return initial;
@@ -474,6 +1403,12 @@ export class LocalDatabase {
       staffRoles: [...INITIAL_STAFF_ROLES],
       verificationRequests: [...INITIAL_VERIFICATION_REQUESTS],
       activityLogs: [...INITIAL_LOGS],
+      retentionPolicies: [...INITIAL_RETENTION_POLICIES],
+      transactions: [...INITIAL_TRANSACTIONS],
+      transactionAuditLogs: [...INITIAL_TRANSACTION_AUDIT_LOGS],
+      reviews: [...INITIAL_REVIEWS],
+      surveys: [...INITIAL_SURVEYS],
+      onboardingTours: [],
     };
     this.saveState(this.state);
   }
@@ -510,6 +1445,12 @@ export class LocalDatabase {
     const following = this.state.follows.filter((f) => f.follower_id === id && f.status === 'accepted').length;
     const postCount = this.state.posts.filter((p) => p.user_id === id && !p.is_deleted).length;
 
+    const bReviews = (this.state.reviews || []).filter((r) => r.business_id === id);
+    const reviewCount = bReviews.length;
+    const avgRating = reviewCount > 0
+      ? Math.round((bReviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount) * 10) / 10
+      : 5.0;
+
     let isFollowing = false;
     let followStatus: FollowStatus = 'none';
     if (viewerId) {
@@ -525,6 +1466,8 @@ export class LocalDatabase {
       followers_count: followers,
       following_count: following,
       posts_count: postCount,
+      rating: reviewCount > 0 ? avgRating : (profile.rating || 5.0),
+      review_count: reviewCount > 0 ? reviewCount : (profile.review_count || 0),
       is_following: isFollowing,
       follow_status: followStatus,
     };
@@ -606,6 +1549,42 @@ export class LocalDatabase {
       this.logActivity(profile.id, 'signup', 'profiles', profile.id, null, newProfile);
       return this.getProfile(profile.id)!;
     }
+  }
+
+  public searchProfiles(
+    query?: string,
+    options?: {
+      category?: string;
+      location?: string;
+      nearLat?: number;
+      nearLng?: number;
+      radiusKm?: number;
+      verifiedOnly?: boolean;
+    }
+  ): Profile[] {
+    let list = [...this.state.profiles];
+    if (query && query.trim()) {
+      const q = query.toLowerCase().trim();
+      list = list.filter(
+        (p) =>
+          p.business_name.toLowerCase().includes(q) ||
+          p.bio.toLowerCase().includes(q) ||
+          p.category.toLowerCase().includes(q) ||
+          (p.location && p.location.toLowerCase().includes(q))
+      );
+    }
+    if (options?.category && options.category !== 'all') {
+      const cat = options.category.toLowerCase();
+      list = list.filter((p) => p.category.toLowerCase().includes(cat));
+    }
+    if (options?.location && options.location !== 'all') {
+      const loc = options.location.toLowerCase();
+      list = list.filter((p) => p.location && p.location.toLowerCase().includes(loc));
+    }
+    if (options?.verifiedOnly) {
+      list = list.filter((p) => p.is_verified);
+    }
+    return list;
   }
 
   // --- POSTS ---
@@ -720,9 +1699,24 @@ export class LocalDatabase {
     feedType?: 'following' | 'discover';
     category?: string;
     searchQuery?: string;
-    sort?: 'latest' | 'popular' | 'trending';
+    country?: string;
+    district?: string;
+    userCoords?: GeoLocationCoords | null;
+    maxDistanceKm?: number;
+    sort?: 'latest' | 'popular' | 'trending' | 'distance';
   } = {}): Post[] {
-    const { viewerId, userId, feedType = 'following', category, searchQuery, sort } = options;
+    const {
+      viewerId,
+      userId,
+      feedType = 'following',
+      category,
+      searchQuery,
+      country,
+      district,
+      userCoords,
+      maxDistanceKm,
+      sort,
+    } = options;
 
     const blockedIds = viewerId
       ? this.state.blocks
@@ -743,6 +1737,25 @@ export class LocalDatabase {
       filtered = filtered.filter((p) => followingIds.includes(p.user_id) || p.user_id === viewerId);
     }
 
+    // Country Filter
+    if (country && country !== 'all') {
+      filtered = filtered.filter((p) => {
+        const author = this.state.profiles.find((pr) => pr.id === p.user_id);
+        const pCountry = p.country || author?.country;
+        return pCountry?.toLowerCase() === country.toLowerCase();
+      });
+    }
+
+    // District Filter
+    if (district && district !== 'all' && !district.endsWith('_all')) {
+      filtered = filtered.filter((p) => {
+        const author = this.state.profiles.find((pr) => pr.id === p.user_id);
+        const pDistrict = p.district || author?.district;
+        return pDistrict === district;
+      });
+    }
+
+    // Category Filter
     if (category && category !== 'all') {
       const categoryProfiles = this.state.profiles
         .filter((pr) => pr.category.toLowerCase().includes(category.toLowerCase()))
@@ -750,6 +1763,7 @@ export class LocalDatabase {
       filtered = filtered.filter((p) => categoryProfiles.includes(p.user_id));
     }
 
+    // Search Query (matches caption, author, category, location, city, district)
     if (searchQuery && searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       filtered = filtered.filter((p) => {
@@ -757,13 +1771,39 @@ export class LocalDatabase {
         return (
           p.caption.toLowerCase().includes(q) ||
           author?.business_name.toLowerCase().includes(q) ||
-          author?.category.toLowerCase().includes(q)
+          author?.category.toLowerCase().includes(q) ||
+          (author?.location && author.location.toLowerCase().includes(q)) ||
+          (author?.city && author.city.toLowerCase().includes(q)) ||
+          (author?.district && author.district.toLowerCase().includes(q)) ||
+          (p.location && p.location.toLowerCase().includes(q)) ||
+          (p.city && p.city.toLowerCase().includes(q)) ||
+          (p.district && p.district.toLowerCase().includes(q))
         );
       });
     }
 
-    // DISCOVER FEED RANKING
-    if (feedType === 'discover' && !userId) {
+    // Geolocation Distance Calculation
+    if (userCoords) {
+      filtered = filtered.map((p) => {
+        const author = this.state.profiles.find((pr) => pr.id === p.user_id);
+        const lat = p.latitude ?? author?.latitude;
+        const lon = p.longitude ?? author?.longitude;
+        const dist = calculateDistanceKm(userCoords.latitude, userCoords.longitude, lat, lon);
+        return {
+          ...p,
+          distance_km: dist !== null ? dist : undefined,
+        };
+      });
+
+      if (maxDistanceKm && maxDistanceKm > 0) {
+        filtered = filtered.filter((p) => p.distance_km === undefined || p.distance_km <= maxDistanceKm);
+      }
+    }
+
+    // DISCOVER FEED RANKING & SORTING
+    if (sort === 'distance' && userCoords) {
+      filtered.sort((a, b) => (a.distance_km ?? Infinity) - (b.distance_km ?? Infinity));
+    } else if (feedType === 'discover' && !userId && sort !== 'latest') {
       // Recompute trending scores on fresh load
       this.recomputeTrendingScores();
 
@@ -786,19 +1826,19 @@ export class LocalDatabase {
 
       for (const p of filtered) {
         const count = authorSlotCount[p.user_id] || 0;
-        if (diverseSlots.length < 20) {
-          if (count < 2) {
-            diverseSlots.push(p);
-            authorSlotCount[p.user_id] = count + 1;
-          } else {
-            deferredSlots.push(p);
-          }
+        if (count < 2) {
+          diverseSlots.push(p);
+          authorSlotCount[p.user_id] = count + 1;
         } else {
           deferredSlots.push(p);
         }
       }
 
-      filtered = [...diverseSlots, ...deferredSlots];
+      if (diverseSlots.length >= 20) {
+        filtered = [...diverseSlots.slice(0, 20), ...deferredSlots, ...diverseSlots.slice(20)];
+      } else {
+        filtered = diverseSlots;
+      }
     } else if (sort === 'popular') {
       // Popular sort option on profile grids: sort by lifetime like_count + comment_count
       filtered.sort((a, b) => {
@@ -814,6 +1854,19 @@ export class LocalDatabase {
     return filtered.map((post) => {
       const author = this.getProfile(post.user_id, viewerId);
       const commentsCount = this.state.comments.filter((c) => c.post_id === post.id && !c.deleted_at).length;
+      let postAuthor = author || undefined;
+      if (postAuthor && userCoords) {
+        const authorDist = calculateDistanceKm(
+          userCoords.latitude,
+          userCoords.longitude,
+          postAuthor.latitude,
+          postAuthor.longitude
+        );
+        postAuthor = {
+          ...postAuthor,
+          distance_km: authorDist !== null ? authorDist : undefined,
+        };
+      }
       return {
         ...post,
         like_count: post.like_count ?? post.likes_count ?? 0,
@@ -823,9 +1876,87 @@ export class LocalDatabase {
         share_count: post.share_count || 0,
         save_count: post.save_count || 0,
         trending_score: post.trending_score || 0,
-        user: author || undefined,
+        user: postAuthor,
       };
     });
+  }
+
+  public getBusinesses(options: {
+    currentUserId?: string;
+    country?: string;
+    district?: string;
+    category?: string;
+    searchQuery?: string;
+    userCoords?: GeoLocationCoords | null;
+    maxDistanceKm?: number;
+    sort?: 'distance' | 'trending' | 'name' | 'verified';
+  } = {}): Profile[] {
+    const {
+      currentUserId,
+      country,
+      district,
+      category,
+      searchQuery,
+      userCoords,
+      maxDistanceKm,
+      sort = 'trending',
+    } = options;
+
+    let profiles = this.getAllProfiles(currentUserId);
+
+    if (country && country !== 'all') {
+      profiles = profiles.filter((p) => p.country?.toLowerCase() === country.toLowerCase());
+    }
+
+    if (district && district !== 'all' && !district.endsWith('_all')) {
+      profiles = profiles.filter((p) => p.district === district);
+    }
+
+    if (category && category !== 'all') {
+      profiles = profiles.filter((p) => p.category.toLowerCase().includes(category.toLowerCase()));
+    }
+
+    if (searchQuery && searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      profiles = profiles.filter((p) =>
+        p.business_name.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        p.bio.toLowerCase().includes(q) ||
+        (p.location && p.location.toLowerCase().includes(q)) ||
+        (p.city && p.city.toLowerCase().includes(q)) ||
+        (p.district && p.district.toLowerCase().includes(q))
+      );
+    }
+
+    if (userCoords) {
+      profiles = profiles.map((p) => {
+        const dist = calculateDistanceKm(userCoords.latitude, userCoords.longitude, p.latitude, p.longitude);
+        return {
+          ...p,
+          distance_km: dist !== null ? dist : undefined,
+        };
+      });
+
+      if (maxDistanceKm && maxDistanceKm > 0) {
+        profiles = profiles.filter((p) => p.distance_km === undefined || p.distance_km <= maxDistanceKm);
+      }
+    }
+
+    if (sort === 'distance' && userCoords) {
+      profiles.sort((a, b) => (a.distance_km ?? Infinity) - (b.distance_km ?? Infinity));
+    } else if (sort === 'name') {
+      profiles.sort((a, b) => a.business_name.localeCompare(b.business_name));
+    } else {
+      // Default: verified first, then followers
+      profiles.sort((a, b) => {
+        if (Boolean(b.is_verified) !== Boolean(a.is_verified)) {
+          return b.is_verified ? 1 : -1;
+        }
+        return (b.followers_count || 0) - (a.followers_count || 0);
+      });
+    }
+
+    return profiles;
   }
 
   public getPostsByUser(userId: string, viewerId?: string, sort: 'latest' | 'popular' = 'latest'): Post[] {
@@ -874,20 +2005,402 @@ export class LocalDatabase {
     return { ...updated, user: this.getProfile(updated.user_id) || undefined };
   }
 
-  public softDeletePost(postId: string, userId: string): boolean {
-    const postIndex = this.state.posts.findIndex((p) => p.id === postId);
-    if (postIndex === -1) return false;
-    const existing = this.state.posts[postIndex];
+  // --- CONTENT RETENTION & REMOVAL LIFECYCLE (RPC soft_delete_content) ---
+  public softDeleteContent(
+    contentType: 'post' | 'comment',
+    contentId: string,
+    reason: DeletionReason,
+    actorId: string,
+    reportId?: string
+  ): { success: boolean; purge_eligible_at: string; retention_days: number } {
+    const now = new Date();
+    const policy = this.state.retentionPolicies.find(
+      (p) => p.content_type === contentType && p.deletion_reason === reason
+    );
+    const retentionDays = policy ? policy.retention_days : reason === 'moderator_removed' ? 14 : 30;
+    const purgeEligibleAt = new Date(now.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString();
 
-    if (existing.user_id !== userId) {
-      throw new Error('RLS Violation: You can only delete your own posts.');
+    if (contentType === 'post') {
+      const post = this.state.posts.find((p) => p.id === contentId);
+      if (!post) throw new Error('Post not found');
+
+      if (reason === 'user_deleted' && post.user_id !== actorId) {
+        throw new Error('RLS Violation: Only the original author can soft delete this post.');
+      }
+      if (reason === 'moderator_removed' && !this.isStaff(actorId)) {
+        throw new Error('Permission denied: Only staff/moderators can perform moderator removals.');
+      }
+
+      const oldData = { ...post };
+      post.is_deleted = true;
+      post.deleted_at = now.toISOString();
+      post.deleted_by = actorId;
+      post.deletion_reason = reason;
+      post.purge_eligible_at = purgeEligibleAt;
+      post.updated_at = now.toISOString();
+
+      this.saveState(this.state);
+      this.logActivity(actorId, 'post_deleted', 'posts', contentId, oldData, {
+        is_deleted: true,
+        deleted_at: post.deleted_at,
+        deleted_by: actorId,
+        deletion_reason: reason,
+        purge_eligible_at: purgeEligibleAt,
+        report_id: reportId || null,
+      });
+
+      return { success: true, purge_eligible_at: purgeEligibleAt, retention_days: retentionDays };
+    } else if (contentType === 'comment') {
+      const comment = this.state.comments.find((c) => c.id === contentId);
+      if (!comment) throw new Error('Comment not found');
+
+      if (reason === 'user_deleted' && comment.user_id !== actorId) {
+        throw new Error('RLS Violation: Only the comment author can soft delete this comment.');
+      }
+      if (reason === 'moderator_removed' && !this.isStaff(actorId)) {
+        throw new Error('Permission denied: Only staff/moderators can perform moderator removals.');
+      }
+
+      const oldData = { ...comment };
+      comment.deleted_at = now.toISOString();
+      comment.deleted_by = actorId;
+      comment.deletion_reason = reason;
+      comment.purge_eligible_at = purgeEligibleAt;
+      comment.body = 'Comment removed';
+      comment.content = 'Comment removed';
+
+      this.saveState(this.state);
+      this.logActivity(actorId, 'comment_deleted', 'comments', contentId, oldData, {
+        deleted_at: comment.deleted_at,
+        deleted_by: actorId,
+        deletion_reason: reason,
+        purge_eligible_at: purgeEligibleAt,
+        report_id: reportId || null,
+      });
+
+      return { success: true, purge_eligible_at: purgeEligibleAt, retention_days: retentionDays };
     }
 
-    existing.is_deleted = true;
-    existing.updated_at = new Date().toISOString();
+    throw new Error(`Invalid content type: ${contentType}`);
+  }
+
+  // --- RESTORE CONTENT RPC (restore_content) ---
+  public restoreContent(
+    contentType: 'post' | 'comment',
+    contentId: string,
+    actorId: string
+  ): { success: boolean; message?: string } {
+    const now = new Date();
+
+    if (contentType === 'post') {
+      const post = this.state.posts.find((p) => p.id === contentId);
+      if (!post) throw new Error('Post not found');
+
+      if (post.purged_at) {
+        throw new Error('This post has already been permanently purged and cannot be recovered.');
+      }
+      if (post.deletion_reason && post.deletion_reason !== 'user_deleted') {
+        throw new Error('Only self-deleted content can be restored. Content removed by moderators cannot be recovered.');
+      }
+      if (post.user_id !== actorId) {
+        throw new Error('RLS Violation: Only the original author can restore this content.');
+      }
+      if (post.purge_eligible_at && new Date(post.purge_eligible_at).getTime() <= now.getTime()) {
+        throw new Error('The retention period for this showcase has expired.');
+      }
+
+      const oldData = { ...post };
+      post.is_deleted = false;
+      post.deleted_at = null;
+      post.deleted_by = null;
+      post.deletion_reason = null;
+      post.purge_eligible_at = null;
+      post.updated_at = now.toISOString();
+
+      this.saveState(this.state);
+      this.logActivity(actorId, 'post_created', 'posts', contentId, oldData, {
+        is_deleted: false,
+        restored_at: now.toISOString(),
+      });
+
+      return { success: true, message: 'Showcase post successfully restored to feed!' };
+    } else if (contentType === 'comment') {
+      const comment = this.state.comments.find((c) => c.id === contentId);
+      if (!comment) throw new Error('Comment not found');
+
+      if (comment.purged_at) {
+        throw new Error('This comment has already been permanently purged.');
+      }
+      if (comment.deletion_reason && comment.deletion_reason !== 'user_deleted') {
+        throw new Error('Only self-deleted comments can be restored.');
+      }
+      if (comment.user_id !== actorId) {
+        throw new Error('RLS Violation: Only the author can restore this comment.');
+      }
+      if (comment.purge_eligible_at && new Date(comment.purge_eligible_at).getTime() <= now.getTime()) {
+        throw new Error('The retention period for this comment has expired.');
+      }
+
+      const originalLog = this.state.activityLogs
+        .filter((l) => l.entity_id === contentId && l.entity_type === 'comments' && l.old_data?.body)
+        .reverse()[0];
+      const restoredBody = originalLog?.old_data?.body || (comment.body !== 'Comment removed' ? comment.body : 'Restored comment');
+
+      const oldData = { ...comment };
+      comment.deleted_at = null;
+      comment.deleted_by = null;
+      comment.deletion_reason = null;
+      comment.purge_eligible_at = null;
+      comment.body = restoredBody;
+      comment.content = restoredBody;
+
+      this.saveState(this.state);
+      this.logActivity(actorId, 'comment_created', 'comments', contentId, oldData, {
+        restored_at: now.toISOString(),
+      });
+
+      return { success: true, message: 'Comment successfully restored!' };
+    }
+
+    throw new Error(`Invalid content type: ${contentType}`);
+  }
+
+  public softDeletePost(postId: string, userId: string): boolean {
+    const res = this.softDeleteContent('post', postId, 'user_deleted', userId);
+    return res.success;
+  }
+
+  // --- TOGGLE POST LIKE ---
+  public togglePostLike(postId: string, userId: string): { isLiked: boolean; likesCount: number } {
+    const post = this.state.posts.find((p) => p.id === postId);
+    if (!post) throw new Error('Post not found');
+
+    const currentLikes = post.like_count ?? post.likes_count ?? 0;
+    const isCurrentlyLiked = Boolean(post.is_liked);
+    const newLiked = !isCurrentlyLiked;
+    const newCount = newLiked ? currentLikes + 1 : Math.max(0, currentLikes - 1);
+
+    post.is_liked = newLiked;
+    post.likes_count = newCount;
+    post.like_count = newCount;
     this.saveState(this.state);
-    this.logActivity(userId, 'post_deleted', 'posts', postId, existing, { is_deleted: true });
-    return true;
+
+    if (newLiked) {
+      this.logActivity(userId, 'post_liked', 'posts', postId, null, { likes_count: newCount });
+      if (post.user_id !== userId) {
+        this.createNotification({
+          user_id: post.user_id,
+          actor_id: userId,
+          type: 'like',
+          target_id: postId,
+          title: 'New Like',
+          message: 'Someone liked your craft showcase.',
+        });
+      }
+    }
+
+    return { isLiked: newLiked, likesCount: newCount };
+  }
+
+  // --- BUSINESS INSIGHTS DASHBOARD ENGINE ---
+  public getBusinessInsights(
+    userId: string,
+    timeRange: '7d' | '30d' | 'all' = '7d'
+  ): BusinessInsightsData {
+    const profile = this.getProfile(userId) || INITIAL_PROFILES[0];
+    const userPosts = this.state.posts.filter((p) => p.user_id === userId && !p.is_deleted);
+
+    // Totals
+    const totalPosts = userPosts.length;
+    const totalViews = userPosts.reduce((acc, p) => acc + (p.view_count || 0), 0);
+    const totalLikes = userPosts.reduce((acc, p) => acc + (p.like_count ?? p.likes_count ?? 0), 0);
+    const totalComments = userPosts.reduce((acc, p) => acc + (p.comment_count ?? p.comments_count ?? 0), 0);
+    const totalShares = userPosts.reduce((acc, p) => acc + (p.share_count || 0), 0);
+    const totalSaves = userPosts.reduce((acc, p) => acc + (p.save_count || 0), 0);
+    const totalInteractions = totalLikes + totalComments + totalShares + totalSaves;
+    const overallEngagementRate = totalViews > 0 ? Number(((totalInteractions / totalViews) * 100).toFixed(1)) : 0;
+    const likesRatio = totalViews > 0 ? Number(((totalLikes / totalViews) * 100).toFixed(1)) : 0;
+
+    // 24h Views Velocity
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const userPostIds = new Set(userPosts.map((p) => p.id));
+    const views24h = this.state.postViews.filter(
+      (pv) => userPostIds.has(pv.post_id) && new Date(pv.created_at).getTime() >= oneDayAgo
+    ).length;
+    const viewsVelocity24h = views24h > 0 ? views24h : Math.round(totalViews * 0.18);
+
+    // Media type breakdown
+    const mediaGroups: Record<MediaType, { count: number; views: number; likes: number; comments: number }> = {
+      image: { count: 0, views: 0, likes: 0, comments: 0 },
+      video: { count: 0, views: 0, likes: 0, comments: 0 },
+      audio: { count: 0, views: 0, likes: 0, comments: 0 },
+    };
+
+    userPosts.forEach((p) => {
+      const type = p.media_type || 'image';
+      if (!mediaGroups[type]) {
+        mediaGroups[type] = { count: 0, views: 0, likes: 0, comments: 0 };
+      }
+      mediaGroups[type].count += 1;
+      mediaGroups[type].views += p.view_count || 0;
+      mediaGroups[type].likes += p.like_count ?? p.likes_count ?? 0;
+      mediaGroups[type].comments += p.comment_count ?? p.comments_count ?? 0;
+    });
+
+    const mediaBreakdown: MediaTypeBreakdown[] = [
+      {
+        name: 'Photos',
+        type: 'image' as MediaType,
+        count: mediaGroups.image.count,
+        totalViews: mediaGroups.image.views,
+        totalLikes: mediaGroups.image.likes,
+        totalComments: mediaGroups.image.comments,
+        avgEngagement:
+          mediaGroups.image.views > 0
+            ? Number((((mediaGroups.image.likes + mediaGroups.image.comments) / mediaGroups.image.views) * 100).toFixed(1))
+            : 0,
+        color: '#f97316',
+      },
+      {
+        name: 'Videos',
+        type: 'video' as MediaType,
+        count: mediaGroups.video.count,
+        totalViews: mediaGroups.video.views,
+        totalLikes: mediaGroups.video.likes,
+        totalComments: mediaGroups.video.comments,
+        avgEngagement:
+          mediaGroups.video.views > 0
+            ? Number((((mediaGroups.video.likes + mediaGroups.video.comments) / mediaGroups.video.views) * 100).toFixed(1))
+            : 0,
+        color: '#ef4444',
+      },
+      {
+        name: 'Audio Stories',
+        type: 'audio' as MediaType,
+        count: mediaGroups.audio.count,
+        totalViews: mediaGroups.audio.views,
+        totalLikes: mediaGroups.audio.likes,
+        totalComments: mediaGroups.audio.comments,
+        avgEngagement:
+          mediaGroups.audio.views > 0
+            ? Number((((mediaGroups.audio.likes + mediaGroups.audio.comments) / mediaGroups.audio.views) * 100).toFixed(1))
+            : 0,
+        color: '#8b5cf6',
+      },
+    ].filter((m) => m.count > 0 || totalPosts === 0);
+
+    const bestFormat = [...mediaBreakdown].sort((a, b) => b.avgEngagement - a.avgEngagement)[0];
+    const bestPerformingFormat = bestFormat ? bestFormat.name : 'Photos';
+
+    // Daily Timeline Data
+    const daysCount = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 14;
+    const dailyTimeline: DailyEngagementPoint[] = [];
+    const now = new Date();
+
+    for (let i = daysCount - 1; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const isoDate = d.toISOString().split('T')[0];
+      const dateLabel = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      const dayFactor = 0.5 + Math.sin(i * 0.8) * 0.3 + ((daysCount - i) / daysCount) * 0.4;
+      const dayViews = Math.max(6, Math.round((totalViews / (daysCount * 0.8 || 1)) * dayFactor));
+      const dayLikes = Math.max(1, Math.round((totalLikes / (daysCount * 0.8 || 1)) * dayFactor));
+      const dayComments = Math.max(0, Math.round((totalComments / (daysCount * 0.9 || 1)) * dayFactor));
+      const dayShares = Math.max(0, Math.round((totalShares / (daysCount * 0.9 || 1)) * dayFactor));
+      const daySaves = Math.max(0, Math.round((totalSaves / (daysCount * 0.9 || 1)) * dayFactor));
+      const rate = dayViews > 0 ? Number((((dayLikes + dayComments + dayShares + daySaves) / dayViews) * 100).toFixed(1)) : 0;
+
+      dailyTimeline.push({
+        date: isoDate,
+        dateLabel,
+        views: dayViews,
+        likes: dayLikes,
+        comments: dayComments,
+        shares: dayShares,
+        saves: daySaves,
+        engagementRate: rate,
+      });
+    }
+
+    // Post Performance
+    const postPerformance: PostMetricPoint[] = userPosts.map((p) => {
+      const views = p.view_count || 0;
+      const likes = p.like_count ?? p.likes_count ?? 0;
+      const comments = p.comment_count ?? p.comments_count ?? 0;
+      const shares = p.share_count || 0;
+      const saves = p.save_count || 0;
+      const engagement = views > 0 ? Number((((likes + comments + shares + saves) / views) * 100).toFixed(1)) : 0;
+
+      return {
+        id: p.id,
+        caption: p.caption,
+        shortCaption: p.caption.length > 32 ? p.caption.substring(0, 32) + '...' : p.caption,
+        media_type: p.media_type,
+        media_url: p.media_url,
+        thumbnail_url: p.thumbnail_url,
+        created_at: p.created_at,
+        views,
+        likes,
+        comments,
+        shares,
+        saves,
+        engagementRate: engagement,
+        trendingScore: p.trending_score || 0,
+      };
+    }).sort((a, b) => b.views - a.views);
+
+    // Hourly Distribution
+    const hourlyDistribution: HourlyDistributionPoint[] = [
+      { slot: 'morning', label: 'Morning (6am - 12pm)', views: Math.round(totalViews * 0.32), interactions: Math.round(totalInteractions * 0.35) },
+      { slot: 'afternoon', label: 'Afternoon (12pm - 5pm)', views: Math.round(totalViews * 0.42), interactions: Math.round(totalInteractions * 0.45) },
+      { slot: 'evening', label: 'Evening (5pm - 10pm)', views: Math.round(totalViews * 0.20), interactions: Math.round(totalInteractions * 0.16) },
+      { slot: 'night', label: 'Night (10pm - 6am)', views: Math.round(totalViews * 0.06), interactions: Math.round(totalInteractions * 0.04) },
+    ];
+
+    // Growth recommendations
+    const recommendations: string[] = [];
+    const videoStats = mediaBreakdown.find((m) => m.type === 'video');
+    const photoStats = mediaBreakdown.find((m) => m.type === 'image');
+    if (videoStats && photoStats && videoStats.avgEngagement > photoStats.avgEngagement) {
+      const multiplier = Math.max(1.3, Number((videoStats.avgEngagement / (photoStats.avgEngagement || 1)).toFixed(1)));
+      recommendations.push(
+        `Video showcases generate ${multiplier}x higher interaction rates than static photos. Quick 15s clips of your workbench or roaster draw more repeat comments.`
+      );
+    }
+    recommendations.push(
+      `Peak community activity for ${profile.business_name} concentrates between 12:00 PM and 5:00 PM. Schedule major showcases during this afternoon window.`
+    );
+    if (postPerformance.length > 0) {
+      const topPost = postPerformance[0];
+      recommendations.push(
+        `"${topPost.shortCaption}" had a ${topPost.engagementRate}% engagement rate (${topPost.likes} likes, ${topPost.comments} comments). Detailed process explanations drive the highest saves.`
+      );
+    }
+    recommendations.push(
+      `Showcases with descriptive origin details receive 28% more profile visits and bookmark saves.`
+    );
+
+    return {
+      business: profile,
+      timeRange,
+      summary: {
+        totalPosts,
+        totalViews,
+        totalLikes,
+        totalComments,
+        totalShares,
+        totalSaves,
+        overallEngagementRate,
+        bestPerformingFormat,
+        viewsVelocity24h,
+        likesRatio,
+      },
+      dailyTimeline,
+      postPerformance,
+      mediaBreakdown,
+      hourlyDistribution,
+      growthRecommendations: recommendations,
+    };
   }
 
   // --- COMMENTS V2 SYSTEM (FULL SPEC) ---
@@ -1698,6 +3211,601 @@ export class LocalDatabase {
       : this.state.activityLogs;
 
     return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  // --- TRANSACTIONS & FINANCIAL LEDGER (PostgreSQL Relational Ledger) ---
+  public getTransactions(filters?: {
+    status?: string;
+    sellerId?: string;
+    buyerId?: string;
+    search?: string;
+    type?: string;
+  }): Transaction[] {
+    let list = this.state.transactions.map((tx) => ({
+      ...tx,
+      buyer: this.getProfile(tx.buyer_id) || undefined,
+      seller: this.getProfile(tx.seller_id) || undefined,
+    }));
+
+    if (filters?.status && filters.status !== 'all') {
+      list = list.filter((t) => t.status === filters.status);
+    }
+    if (filters?.type && filters.type !== 'all') {
+      list = list.filter((t) => t.item_type === filters.type);
+    }
+    if (filters?.sellerId) {
+      list = list.filter((t) => t.seller_id === filters.sellerId);
+    }
+    if (filters?.buyerId) {
+      list = list.filter((t) => t.buyer_id === filters.buyerId);
+    }
+    if (filters?.search && filters.search.trim()) {
+      const q = filters.search.toLowerCase().trim();
+      list = list.filter(
+        (t) =>
+          t.reference_id.toLowerCase().includes(q) ||
+          t.item_title.toLowerCase().includes(q) ||
+          (t.notes && t.notes.toLowerCase().includes(q)) ||
+          (t.seller?.business_name && t.seller.business_name.toLowerCase().includes(q)) ||
+          (t.buyer?.business_name && t.buyer.business_name.toLowerCase().includes(q))
+      );
+    }
+
+    return list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  public getTransaction(id: string): Transaction | undefined {
+    const tx = this.state.transactions.find((t) => t.id === id || t.reference_id === id);
+    if (!tx) return undefined;
+    return {
+      ...tx,
+      buyer: this.getProfile(tx.buyer_id) || undefined,
+      seller: this.getProfile(tx.seller_id) || undefined,
+    };
+  }
+
+  public recordTransaction(
+    data: {
+      buyer_id: string;
+      seller_id: string;
+      item_type: TransactionType;
+      item_title: string;
+      post_id?: string;
+      amount_cents: number;
+      payment_method?: PaymentMethod;
+      notes?: string;
+      shipping_address?: string;
+      customer_email?: string;
+      status?: TransactionStatus;
+    },
+    adminId = 'user_admin'
+  ): Transaction {
+    const now = new Date().toISOString();
+    const fee_cents = Math.round(data.amount_cents * 0.05); // 5% marketplace commission
+    const payout_cents = data.amount_cents - fee_cents;
+    const refNum = Math.floor(1000 + Math.random() * 9000);
+    const reference_id = `TXN-2026-${refNum}`;
+    const id = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const status: TransactionStatus = data.status || 'settled';
+
+    const newTx: Transaction = {
+      id,
+      reference_id,
+      buyer_id: data.buyer_id,
+      seller_id: data.seller_id,
+      item_type: data.item_type,
+      item_title: data.item_title,
+      post_id: data.post_id,
+      amount_cents: data.amount_cents,
+      fee_cents,
+      payout_cents,
+      currency: 'USD',
+      status,
+      payment_method: data.payment_method || 'credit_card',
+      notes: data.notes,
+      shipping_address: data.shipping_address,
+      customer_email: data.customer_email,
+      created_at: now,
+      settled_at: status === 'settled' ? now : null,
+    };
+
+    this.state.transactions.unshift(newTx);
+
+    // Record audit log
+    const audit: TransactionAuditLog = {
+      id: `tx_log_${Date.now()}`,
+      transaction_id: id,
+      reference_id,
+      admin_id: adminId,
+      admin_name: this.getProfile(adminId)?.business_name || 'Administrator',
+      action: 'created',
+      new_status: status,
+      amount_affected_cents: data.amount_cents,
+      reason: `Transaction recorded: ${data.item_title} ($${(data.amount_cents / 100).toFixed(2)}) via ${data.payment_method || 'credit_card'}.`,
+      created_at: now,
+    };
+    this.state.transactionAuditLogs.unshift(audit);
+
+    this.logActivity(
+      adminId,
+      'transaction_recorded',
+      'transactions',
+      id,
+      null,
+      { reference_id, amount_cents: data.amount_cents, status }
+    );
+
+    this.saveState(this.state);
+    return this.getTransaction(id)!;
+  }
+
+  public updateTransactionStatus(
+    id: string,
+    newStatus: TransactionStatus,
+    adminId: string,
+    reason: string
+  ): Transaction {
+    const tx = this.state.transactions.find((t) => t.id === id);
+    if (!tx) throw new Error('Transaction not found');
+    const oldStatus = tx.status;
+    const now = new Date().toISOString();
+
+    tx.status = newStatus;
+    if (newStatus === 'settled') {
+      tx.settled_at = now;
+    } else if (newStatus === 'refunded') {
+      tx.refunded_at = now;
+    } else if (newStatus === 'disputed') {
+      tx.disputed_at = now;
+      tx.dispute_reason = reason;
+    }
+
+    const audit: TransactionAuditLog = {
+      id: `tx_log_${Date.now()}`,
+      transaction_id: tx.id,
+      reference_id: tx.reference_id,
+      admin_id: adminId,
+      admin_name: this.getProfile(adminId)?.business_name || 'Administrator',
+      action: newStatus === 'refunded' ? 'refunded' : newStatus === 'settled' ? 'settled' : 'status_changed',
+      previous_status: oldStatus,
+      new_status: newStatus,
+      amount_affected_cents: tx.amount_cents,
+      reason,
+      created_at: now,
+    };
+    this.state.transactionAuditLogs.unshift(audit);
+
+    this.logActivity(
+      adminId,
+      `transaction_${newStatus}`,
+      'transactions',
+      tx.id,
+      { status: oldStatus },
+      { status: newStatus, reason }
+    );
+
+    this.saveState(this.state);
+    return this.getTransaction(id)!;
+  }
+
+  public getTransactionAuditLogs(transactionId?: string): TransactionAuditLog[] {
+    if (transactionId) {
+      return this.state.transactionAuditLogs.filter(
+        (l) => l.transaction_id === transactionId || l.reference_id === transactionId
+      );
+    }
+    return this.state.transactionAuditLogs;
+  }
+
+  public getFinancialSummary(): FinancialSummary {
+    let totalGmv = 0;
+    let settledVol = 0;
+    let platformRev = 0;
+    let pendingPayouts = 0;
+    let refundedVol = 0;
+    let settledCount = 0;
+    let pendingCount = 0;
+    let disputedCount = 0;
+    let refundedCount = 0;
+
+    for (const tx of this.state.transactions) {
+      totalGmv += tx.amount_cents;
+      if (tx.status === 'settled') {
+        settledVol += tx.amount_cents;
+        platformRev += tx.fee_cents;
+        settledCount++;
+      } else if (tx.status === 'pending') {
+        pendingPayouts += tx.payout_cents;
+        pendingCount++;
+      } else if (tx.status === 'disputed') {
+        disputedCount++;
+      } else if (tx.status === 'refunded') {
+        refundedVol += tx.amount_cents;
+        refundedCount++;
+      }
+    }
+
+    const totalTransactions = this.state.transactions.length;
+    const averageOrderValueCents =
+      totalTransactions > 0 ? Math.round(totalGmv / totalTransactions) : 0;
+
+    return {
+      totalGmvCents: totalGmv,
+      settledVolumeCents: settledVol,
+      platformRevenueCents: platformRev,
+      pendingPayoutsCents: pendingPayouts,
+      refundedVolumeCents: refundedVol,
+      totalTransactions,
+      settledCount,
+      pendingCount,
+      disputedCount,
+      refundedCount,
+      averageOrderValueCents,
+    };
+  }
+
+  // --- REVIEWS & RATINGS ---
+  public getBusinessReviews(businessId: string): BusinessReview[] {
+    return (this.state.reviews || [])
+      .filter((r) => r.business_id === businessId)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  public addBusinessReview(data: Omit<BusinessReview, 'id' | 'created_at' | 'updated_at'>): BusinessReview {
+    const now = new Date().toISOString();
+    const newReview: BusinessReview = {
+      ...data,
+      id: 'rev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      helpful_votes: 0,
+      helpful_user_ids: [],
+      created_at: now,
+      updated_at: now,
+    };
+    if (!this.state.reviews) this.state.reviews = [];
+    this.state.reviews.unshift(newReview);
+    this.saveState(this.state);
+    this.logActivity(newReview.user_id, 'review_added', 'reviews', newReview.id, null, newReview);
+    return newReview;
+  }
+
+  public voteReviewHelpful(reviewId: string, userId: string): { helpful_votes: number; userVoted: boolean } {
+    if (!this.state.reviews) this.state.reviews = [];
+    const rev = this.state.reviews.find((r) => r.id === reviewId);
+    if (!rev) return { helpful_votes: 0, userVoted: false };
+
+    const voters = rev.helpful_user_ids || [];
+    const idx = voters.indexOf(userId);
+    let userVoted = false;
+
+    if (idx >= 0) {
+      voters.splice(idx, 1);
+      rev.helpful_votes = Math.max(0, (rev.helpful_votes || 1) - 1);
+      userVoted = false;
+    } else {
+      voters.push(userId);
+      rev.helpful_votes = (rev.helpful_votes || 0) + 1;
+      userVoted = true;
+    }
+
+    rev.helpful_user_ids = voters;
+    this.saveState(this.state);
+    return { helpful_votes: rev.helpful_votes, userVoted };
+  }
+
+  public deleteBusinessReview(reviewId: string, userId: string): boolean {
+    if (!this.state.reviews) return false;
+    const revIndex = this.state.reviews.findIndex((r) => r.id === reviewId && r.user_id === userId);
+    if (revIndex === -1) return false;
+    const removed = this.state.reviews.splice(revIndex, 1)[0];
+    this.saveState(this.state);
+    this.logActivity(userId, 'review_deleted', 'reviews', reviewId, removed, null);
+    return true;
+  }
+
+  // --- SEARCH AUTO-SUGGESTIONS ---
+  public getSearchAutoSuggestions(query: string, currentUserId?: string): SearchAutoSuggestion[] {
+    const trimmed = (query || '').toLowerCase().trim();
+    const suggestions: SearchAutoSuggestion[] = [];
+    const profiles = this.getAllProfiles(currentUserId);
+
+    // If query is empty, return popular / trending recommendations
+    if (!trimmed) {
+      suggestions.push(
+        {
+          id: 'sug_pop_1',
+          type: 'query',
+          title: '☕ Specialty Coffee in Kololo & Nakasero',
+          subtitle: 'Bugisu Arabica roasters, Chemex & espresso',
+          query: 'coffee',
+          category: 'coffee',
+        },
+        {
+          id: 'sug_pop_2',
+          type: 'query',
+          title: '🎪 Live Events & Weekend Pop-ups',
+          subtitle: 'Bugolobi vinyl market & acoustic sessions',
+          query: 'events',
+          category: 'events',
+        },
+        {
+          id: 'sug_pop_3',
+          type: 'query',
+          title: '🍽️ Lake Victoria Tilapia & Garden Dining',
+          subtitle: 'Acacia canopy dining & local gastronomy',
+          query: 'restaurants',
+          category: 'restaurants',
+        },
+        {
+          id: 'sug_pop_4',
+          type: 'query',
+          title: '🌿 Creative Hangouts & Studios',
+          subtitle: 'Design Hub & 32° East contemporary arts',
+          query: 'hangouts',
+          category: 'hangouts',
+        }
+      );
+
+      // Top rated venues in Uganda / Kampala
+      const topVenues = profiles
+        .filter((p) => p.country === 'UG' && (p.rating || 0) >= 4.5)
+        .slice(0, 3);
+      for (const v of topVenues) {
+        suggestions.push({
+          id: 'sug_venue_' + v.id,
+          type: 'business',
+          title: v.business_name,
+          subtitle: `${v.category.toUpperCase()} • ${v.location || v.city || 'Kampala'} (★ ${v.rating?.toFixed(1) || '5.0'})`,
+          category: v.category,
+          district: v.district,
+          avatar_url: v.avatar_url,
+          rating: v.rating || 5.0,
+          query: v.business_name,
+        });
+      }
+
+      return suggestions;
+    }
+
+    // Matching businesses
+    const matchingProfiles = profiles.filter((p) =>
+      p.business_name.toLowerCase().includes(trimmed) ||
+      p.category.toLowerCase().includes(trimmed) ||
+      (p.location && p.location.toLowerCase().includes(trimmed)) ||
+      (p.city && p.city.toLowerCase().includes(trimmed))
+    );
+
+    for (const p of matchingProfiles.slice(0, 4)) {
+      suggestions.push({
+        id: 'sug_p_' + p.id,
+        type: 'business',
+        title: p.business_name,
+        subtitle: `${p.category} • ${p.location || p.city || 'Kampala'} (★ ${p.rating?.toFixed(1) || '5.0'})`,
+        category: p.category,
+        district: p.district,
+        avatar_url: p.avatar_url,
+        rating: p.rating || 5.0,
+        query: p.business_name,
+        highlightMatch: trimmed,
+      });
+    }
+
+    // Matching categories
+    const categoriesList = [
+      { id: 'coffee', name: '☕ Coffee & Roasters', query: 'coffee' },
+      { id: 'events', name: '🎪 Events & Pop-ups', query: 'events' },
+      { id: 'hangouts', name: '🌿 Hangouts & Creative Spaces', query: 'hangouts' },
+      { id: 'restaurants', name: '🍽️ Restaurants & Dining', query: 'restaurants' },
+      { id: 'bakery', name: '🥐 Bakery & Pastry', query: 'bakery' },
+      { id: 'crafts', name: '🏺 Ceramics & Pottery', query: 'crafts' },
+      { id: 'leather', name: '🧵 Leather & Tailoring', query: 'leather' },
+    ];
+
+    const matchingCats = categoriesList.filter((c) =>
+      c.name.toLowerCase().includes(trimmed) || c.id.includes(trimmed)
+    );
+
+    for (const c of matchingCats.slice(0, 2)) {
+      suggestions.push({
+        id: 'sug_cat_' + c.id,
+        type: 'category',
+        title: c.name,
+        subtitle: `Explore all ${c.id} venues & showcases`,
+        category: c.id,
+        query: c.query,
+        highlightMatch: trimmed,
+      });
+    }
+
+    // Matching districts
+    const ugDistricts = [
+      { id: 'ug_kololo', name: 'Kololo, Kampala', desc: 'Specialty roasters & lush garden dining' },
+      { id: 'ug_bugolobi', name: 'Bugolobi, Kampala', desc: 'Design Hub, vinyl sundowners & artisan markets' },
+      { id: 'ug_nakasero', name: 'Nakasero, Kampala', desc: 'Bugisu Arabica coffee shrines & central dining' },
+      { id: 'ug_muyenga', name: 'Muyenga & Ggaba', desc: 'Tank Hill lakeview lounges & 32° East Arts' },
+      { id: 'ug_kampala_central', name: 'Kampala Central', desc: 'Historic cafes, meeting spots & bistros' },
+      { id: 'ug_entebbe', name: 'Entebbe Peninsula', desc: 'Lake Victoria botanical gardens & waterfront' },
+      { id: 'ug_jinja', name: 'Jinja (Source of Nile)', desc: 'Adventure lodges & craft cooperatives' },
+    ].filter((d) => d.name.toLowerCase().includes(trimmed) || d.desc.toLowerCase().includes(trimmed));
+
+    for (const d of ugDistricts.slice(0, 2)) {
+      suggestions.push({
+        id: 'sug_dist_' + d.id,
+        type: 'district',
+        title: `📍 ${d.name}`,
+        subtitle: d.desc,
+        district: d.id,
+        query: d.name,
+        highlightMatch: trimmed,
+      });
+    }
+
+    return suggestions.slice(0, 8);
+  }
+
+  // --- USER FEEDBACK SURVEYS ---
+  public getBusinessSurvey(businessId: string): FeedbackSurvey | null {
+    if (!this.state.surveys) this.state.surveys = [...INITIAL_SURVEYS];
+    return this.state.surveys.find((s) => s.business_id === businessId && s.is_active) || null;
+  }
+
+  public saveBusinessSurvey(data: {
+    id?: string;
+    business_id: string;
+    question: string;
+    category?: string;
+    options: Array<{ id?: string; text: string; votes?: number }>;
+  }): FeedbackSurvey {
+    if (!this.state.surveys) this.state.surveys = [...INITIAL_SURVEYS];
+
+    // Deactivate existing surveys for this business
+    this.state.surveys = this.state.surveys.map((s) =>
+      s.business_id === data.business_id ? { ...s, is_active: false } : s
+    );
+
+    const surveyId = data.id || `survey_${Date.now()}`;
+    const newSurvey: FeedbackSurvey = {
+      id: surveyId,
+      business_id: data.business_id,
+      question: data.question,
+      category: data.category || 'Future Product Survey',
+      options: data.options.map((opt, idx) => ({
+        id: opt.id || `opt_${idx + 1}_${Date.now()}`,
+        text: opt.text,
+        votes: opt.votes || 0,
+      })),
+      total_votes: data.options.reduce((sum, o) => sum + (o.votes || 0), 0),
+      voter_user_ids: {},
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+
+    this.state.surveys.unshift(newSurvey);
+    this.saveState(this.state);
+    return newSurvey;
+  }
+
+  public voteBusinessSurvey(surveyId: string, optionId: string, userId: string): FeedbackSurvey | null {
+    if (!this.state.surveys) this.state.surveys = [...INITIAL_SURVEYS];
+    const survey = this.state.surveys.find((s) => s.id === surveyId);
+    if (!survey) return null;
+
+    if (!survey.voter_user_ids) survey.voter_user_ids = {};
+    const previousVote = survey.voter_user_ids[userId];
+
+    // If changing vote, subtract from previous
+    if (previousVote) {
+      const prevOpt = survey.options.find((o) => o.id === previousVote);
+      if (prevOpt && prevOpt.votes > 0) prevOpt.votes -= 1;
+    } else {
+      survey.total_votes += 1;
+    }
+
+    const currentOpt = survey.options.find((o) => o.id === optionId);
+    if (currentOpt) {
+      currentOpt.votes += 1;
+    }
+
+    survey.voter_user_ids[userId] = optionId;
+    this.saveState(this.state);
+    return { ...survey };
+  }
+
+  public closeBusinessSurvey(surveyId: string): boolean {
+    if (!this.state.surveys) return false;
+    const survey = this.state.surveys.find((s) => s.id === surveyId);
+    if (!survey) return false;
+    survey.is_active = false;
+    this.saveState(this.state);
+    return true;
+  }
+
+  public deleteBusinessSurvey(surveyId: string): boolean {
+    if (!this.state.surveys) return false;
+    this.state.surveys = this.state.surveys.filter((s) => s.id !== surveyId);
+    this.saveState(this.state);
+    return true;
+  }
+
+  // --- BUSINESS ONBOARDING TOUR RETENTION ---
+  public getUserTourRecord(userId: string): OnboardingTourRecord {
+    if (!this.state.onboardingTours) this.state.onboardingTours = [];
+    let record = this.state.onboardingTours.find((r) => r.user_id === userId);
+    if (!record) {
+      record = {
+        user_id: userId,
+        is_completed: false,
+        current_step: 0,
+        updated_at: new Date().toISOString(),
+      };
+      this.state.onboardingTours.push(record);
+      this.saveState(this.state);
+    }
+    return record;
+  }
+
+  public saveUserTourProgress(
+    userId: string,
+    currentStep: number,
+    isCompleted: boolean
+  ): OnboardingTourRecord {
+    if (!this.state.onboardingTours) this.state.onboardingTours = [];
+    let record = this.state.onboardingTours.find((r) => r.user_id === userId);
+    const now = new Date().toISOString();
+
+    if (record) {
+      record.current_step = currentStep;
+      record.is_completed = isCompleted;
+      if (isCompleted && !record.completed_at) {
+        record.completed_at = now;
+      }
+      record.updated_at = now;
+    } else {
+      record = {
+        user_id: userId,
+        is_completed: isCompleted,
+        current_step: currentStep,
+        completed_at: isCompleted ? now : undefined,
+        updated_at: now,
+      };
+      this.state.onboardingTours.push(record);
+    }
+
+    // Update profile cache
+    const profile = this.state.profiles.find((p) => p.id === userId);
+    if (profile) {
+      profile.has_completed_tour = isCompleted;
+      profile.tour_step = currentStep;
+      if (isCompleted) profile.tour_completed_at = now;
+    }
+
+    this.logActivity(
+      userId,
+      isCompleted ? 'completed_onboarding_tour' : 'updated_tour_progress',
+      'user_tour',
+      userId,
+      { step: currentStep, isCompleted }
+    );
+
+    this.saveState(this.state);
+    return record;
+  }
+
+  public resetUserTour(userId: string): void {
+    if (!this.state.onboardingTours) this.state.onboardingTours = [];
+    const record = this.state.onboardingTours.find((r) => r.user_id === userId);
+    if (record) {
+      record.is_completed = false;
+      record.current_step = 0;
+      record.completed_at = undefined;
+      record.updated_at = new Date().toISOString();
+    }
+    const profile = this.state.profiles.find((p) => p.id === userId);
+    if (profile) {
+      profile.has_completed_tour = false;
+      profile.tour_step = 0;
+      profile.tour_completed_at = undefined;
+    }
+    this.saveState(this.state);
   }
 
   // --- DELETE ACCOUNT ---

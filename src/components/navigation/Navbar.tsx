@@ -13,6 +13,10 @@ import {
   ChevronDown,
   Bell,
   Sparkles,
+  BarChart2,
+  Coins,
+  Calendar,
+  Search,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { PWAInstallButton } from '../pwa/PWAInstallButton';
@@ -35,6 +39,7 @@ export const Navbar: React.FC = () => {
     unreadMessagesCount,
     unreadNotificationsCount,
     isStaff,
+    openGlobalSearch,
   } = useApp();
 
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
@@ -42,17 +47,32 @@ export const Navbar: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-30 bg-stone-50/90 backdrop-blur-md border-b border-stone-200/80 transition-colors">
-      <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
-        {/* Zone 1: Brand Wordmark */}
-        <button
-          onClick={() => setActiveTab('home')}
-          className="flex items-center gap-1.5 text-left group transition-transform active:scale-95"
-        >
-          <span className="font-display text-xl font-black tracking-tight text-stone-900 flex items-center">
-            Amapati
-            <span className="inline-block w-2 h-2 rounded-full bg-orange-600 ml-1 transform group-hover:scale-125 transition-transform" />
-          </span>
-        </button>
+      <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between gap-2 sm:gap-3">
+        {/* Zone 1: Brand Wordmark & Global Search */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            onClick={() => setActiveTab('home')}
+            className="flex items-center gap-1.5 text-left group transition-transform active:scale-95 shrink-0"
+          >
+            <span className="font-display text-xl font-black tracking-tight text-stone-900 flex items-center">
+              Amapati
+              <span className="inline-block w-2 h-2 rounded-full bg-orange-600 ml-1 transform group-hover:scale-125 transition-transform" />
+            </span>
+          </button>
+
+          {/* Desktop Global Search Bar */}
+          <button
+            onClick={() => openGlobalSearch()}
+            className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200/70 text-stone-500 hover:text-stone-800 transition text-xs border border-stone-200/80 w-44 md:w-52"
+            title="Search followers, businesses, products (⌘K)"
+          >
+            <Search className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+            <span className="truncate">Search Amapati...</span>
+            <kbd className="ml-auto font-mono text-[9px] px-1 py-0.2 bg-white rounded border border-stone-200 text-stone-400 shadow-2xs">
+              ⌘K
+            </kbd>
+          </button>
+        </div>
 
         {/* Zone 2: Quick Desktop Nav Links */}
         <nav className="hidden sm:flex items-center gap-6 text-xs font-semibold tracking-wide text-stone-600">
@@ -77,6 +97,17 @@ export const Navbar: React.FC = () => {
             Discover
           </button>
           <button
+            onClick={() => setActiveTab('events')}
+            className={`pb-0.5 border-b-2 transition-colors flex items-center gap-1 ${
+              activeTab === 'events'
+                ? 'border-orange-600 text-stone-900 font-bold'
+                : 'border-transparent hover:text-stone-900'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5 text-orange-600" />
+            <span>Events & News</span>
+          </button>
+          <button
             onClick={() => setActiveTab('messages')}
             className={`pb-0.5 border-b-2 transition-colors flex items-center gap-1.5 ${
               activeTab === 'messages'
@@ -91,23 +122,43 @@ export const Navbar: React.FC = () => {
               </span>
             )}
           </button>
-          {isStaff && (
-            <button
-              onClick={() => setActiveTab('admin')}
-              className={`pb-0.5 border-b-2 transition-colors flex items-center gap-1 ${
-                activeTab === 'admin'
-                  ? 'border-orange-600 text-stone-900 font-bold'
-                  : 'border-transparent text-stone-600 hover:text-stone-900'
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5 text-orange-600" />
-              <span>Admin</span>
-            </button>
-          )}
+          <button
+            onClick={() => setActiveTab('insights')}
+            className={`pb-0.5 border-b-2 transition-colors flex items-center gap-1.5 ${
+              activeTab === 'insights'
+                ? 'border-orange-600 text-stone-900 font-bold'
+                : 'border-transparent hover:text-stone-900'
+            }`}
+          >
+            <BarChart2 className="w-3.5 h-3.5 text-orange-600" />
+            <span>Insights</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('admin')}
+            className={`pb-0.5 border-b-2 transition-colors flex items-center gap-1 ${
+              activeTab === 'admin'
+                ? 'border-orange-600 text-stone-900 font-bold'
+                : 'border-transparent text-stone-600 hover:text-stone-900'
+            }`}
+            title="Maintain and record all transactions in the PostgreSQL ledger"
+          >
+            <Coins className="w-3.5 h-3.5 text-orange-600" />
+            <span>Admin Ledger</span>
+          </button>
         </nav>
 
         {/* Zone 3: Actions, Accounts & Auth */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Mobile Search Button */}
+          <button
+            onClick={() => openGlobalSearch()}
+            className="sm:hidden p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition"
+            aria-label="Global Search"
+            title="Search followers, businesses, products"
+          >
+            <Search className="w-5 h-5 text-stone-700" />
+          </button>
+
           {/* Notifications Button */}
           {currentUser && (
             <button
@@ -122,6 +173,20 @@ export const Navbar: React.FC = () => {
               )}
             </button>
           )}
+
+          {/* Events & News Quick Link (Mobile) */}
+          <button
+            onClick={() => setActiveTab('events')}
+            className={`sm:hidden p-1.5 rounded-lg transition ${
+              activeTab === 'events'
+                ? 'bg-orange-100 text-orange-700'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+            }`}
+            aria-label="Events and Google News"
+            title="Events & Google News Tracker"
+          >
+            <Calendar className="w-5 h-5 text-orange-600" />
+          </button>
 
           {/* Messages Button (Mobile quick tap) */}
           <button
@@ -215,6 +280,14 @@ export const Navbar: React.FC = () => {
                     </button>
 
                     <button
+                      onClick={() => setActiveTab('insights')}
+                      className="w-full px-3.5 py-2 text-left font-medium text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                    >
+                      <BarChart2 className="w-3.5 h-3.5 text-orange-600" />
+                      <span>Business Insights & Analytics</span>
+                    </button>
+
+                    <button
                       onClick={() => setOnboardingModalOpen(true)}
                       className="w-full px-3.5 py-2 text-left font-medium text-stone-700 hover:bg-stone-50 flex items-center gap-2"
                     >
@@ -237,15 +310,13 @@ export const Navbar: React.FC = () => {
                       )}
                     </button>
 
-                    {isStaff && (
-                      <button
-                        onClick={() => setActiveTab('admin')}
-                        className="w-full px-3.5 py-2 text-left font-medium text-stone-700 hover:bg-stone-50 flex items-center gap-2"
-                      >
-                        <Shield className="w-3.5 h-3.5 text-orange-600" />
-                        <span>Staff Console (/admin)</span>
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setActiveTab('admin')}
+                      className="w-full px-3.5 py-2 text-left font-medium text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                    >
+                      <Coins className="w-3.5 h-3.5 text-orange-600" />
+                      <span>Admin Transaction Ledger</span>
+                    </button>
 
                     <button
                       onClick={() => setEditProfileModalOpen(true)}

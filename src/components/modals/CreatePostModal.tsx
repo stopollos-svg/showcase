@@ -17,12 +17,16 @@ import {
   MEDIA_LIMITS,
   validateAndProcessAudio,
   validateAndProcessVideo,
+  fileToDataUrl,
 } from '../../lib/media';
-import { MediaType } from '../../types';
+import { VideoPlayer } from '../feed/VideoPlayer';
+import { AudioPlayer } from '../feed/AudioPlayer';
+import { BUSINESS_CATEGORIES, MediaType } from '../../types';
 import { Tag, Users } from 'lucide-react';
 
 export const CreatePostModal: React.FC = () => {
-  const { isCreateModalOpen, closeCreateModal, createPost, communities, showToast } = useApp();
+  const { isCreateModalOpen, closeCreateModal, createPost, showToast } = useApp();
+  const communities = BUSINESS_CATEGORIES.filter((c) => c.id !== 'all');
 
   const [mediaType, setMediaType] = useState<MediaType>('image');
   const [caption, setCaption] = useState('');
@@ -61,8 +65,13 @@ export const CreatePostModal: React.FC = () => {
         if (!result.valid) {
           throw new Error(result.error || 'Video validation failed.');
         }
-        const objUrl = URL.createObjectURL(file);
-        setMediaUrl(objUrl);
+        if (file.size <= 15 * 1024 * 1024) {
+          const dataUrl = await fileToDataUrl(file);
+          setMediaUrl(dataUrl);
+        } else {
+          const objUrl = URL.createObjectURL(file);
+          setMediaUrl(objUrl);
+        }
         setDuration(result.duration);
         if (result.thumbnailUrl) setThumbnailUrl(result.thumbnailUrl);
         setCompressionInfo(`Video verified (${result.duration}s length, under 60s limit).`);
@@ -121,16 +130,14 @@ export const CreatePostModal: React.FC = () => {
         .filter(Boolean);
 
       const comm = communities.find((c) => c.id === selectedCommunity);
+      const postCaption = tags.length > 0 ? `${caption.trim()} ${tags.map((t) => `#${t}`).join(' ')}` : caption.trim();
 
       await createPost({
         media_type: mediaType,
         media_url: mediaUrl,
-        caption: caption.trim(),
+        caption: postCaption,
         duration,
         thumbnail_url: thumbnailUrl,
-        tags,
-        community_id: comm?.id,
-        community_name: comm?.name,
       });
       // reset
       setCaption('');
@@ -265,17 +272,20 @@ export const CreatePostModal: React.FC = () => {
                   />
                 )}
                 {mediaType === 'video' && (
-                  <video
+                  <VideoPlayer
                     src={mediaUrl}
-                    controls
-                    playsInline
-                    className="w-full aspect-video object-cover"
+                    poster={thumbnailUrl}
+                    autoPlayInView={false}
                   />
                 )}
                 {mediaType === 'audio' && (
-                  <div className="p-4 text-white">
-                    <p className="font-semibold text-xs text-orange-400 mb-2">Audio Preview ({duration || 0}s)</p>
-                    <audio src={mediaUrl} controls className="w-full h-8" />
+                  <div className="p-3">
+                    <AudioPlayer
+                      src={mediaUrl}
+                      duration={duration}
+                      thumbnailUrl={thumbnailUrl}
+                      businessName="Audio Preview"
+                    />
                   </div>
                 )}
 
@@ -353,7 +363,7 @@ export const CreatePostModal: React.FC = () => {
               <option value="">No Community (General Showcase)</option>
               {communities.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} ({c.niche})
+                  {c.name}
                 </option>
               ))}
             </select>

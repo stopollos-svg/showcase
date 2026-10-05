@@ -40,6 +40,7 @@ export const SettingsModal: React.FC = () => {
     isSupabaseLive,
     refreshFeed,
     showToast,
+    startOnboardingTour,
   } = useApp();
 
   const [activeSubView, setActiveSubView] = useState<'main' | 'blocked' | 'tests'>('main');
@@ -135,6 +136,23 @@ export const SettingsModal: React.FC = () => {
                 Business Accounts & Profile
               </p>
               <div className="space-y-1.5">
+                <button
+                  onClick={() => {
+                    setSettingsModalOpen(false);
+                    startOnboardingTour();
+                  }}
+                  className="w-full p-3 rounded-xl border border-orange-200/90 bg-orange-50/60 hover:bg-orange-100/70 transition flex items-center justify-between text-left"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Sparkles className="w-4 h-4 text-orange-600" />
+                    <div>
+                      <p className="font-semibold text-stone-900">Guided Business Tour</p>
+                      <p className="text-[11px] text-stone-600">Revisit Profile Editor, Post Creator, Insights & Events walkthrough</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-orange-600 font-bold">Start ›</span>
+                </button>
+
                 <button
                   onClick={() => {
                     setSettingsModalOpen(false);

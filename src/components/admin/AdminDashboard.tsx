@@ -13,10 +13,12 @@ import {
   Search,
   ArrowLeft,
   Lock,
+  Coins,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { db } from '../../lib/mockEngine';
 import { Profile, Report, VerificationRequest } from '../../types';
+import { AdminTransactionLedger } from './AdminTransactionLedger';
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -34,7 +36,7 @@ export const AdminDashboard: React.FC = () => {
     showToast,
   } = useApp();
 
-  const [activeSection, setActiveSection] = useState<'overview' | 'reports' | 'verification' | 'users' | 'activity'>('overview');
+  const [activeSection, setActiveSection] = useState<'transactions' | 'overview' | 'reports' | 'verification' | 'users' | 'activity'>('transactions');
   const [reportFilter, setReportFilter] = useState<'all' | 'open' | 'resolved' | 'dismissed'>('open');
   const [userSearch, setUserSearch] = useState('');
 
@@ -128,6 +130,17 @@ export const AdminDashboard: React.FC = () => {
       {/* Nav Tabs */}
       <div className="flex gap-1.5 overflow-x-auto pb-2 mb-4 scrollbar-none text-xs font-semibold">
         <button
+          onClick={() => setActiveSection('transactions')}
+          className={`px-3.5 py-1.5 rounded-xl transition shrink-0 flex items-center gap-1.5 ${
+            activeSection === 'transactions'
+              ? 'bg-orange-600 text-white shadow-2xs font-bold'
+              : 'bg-white border border-stone-200 text-stone-700 hover:bg-stone-50'
+          }`}
+        >
+          <Coins className="w-3.5 h-3.5" />
+          <span>Transactions & Ledger</span>
+        </button>
+        <button
           onClick={() => setActiveSection('overview')}
           className={`px-3.5 py-1.5 rounded-xl transition shrink-0 ${
             activeSection === 'overview'
@@ -185,6 +198,9 @@ export const AdminDashboard: React.FC = () => {
           <span>Audit Log</span>
         </button>
       </div>
+
+      {/* 0. TRANSACTIONS & FINANCIAL LEDGER */}
+      {activeSection === 'transactions' && <AdminTransactionLedger />}
 
       {/* 1. OVERVIEW */}
       {activeSection === 'overview' && (

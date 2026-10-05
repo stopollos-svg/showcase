@@ -15,7 +15,7 @@ export interface ValidationResult {
 export const MEDIA_LIMITS = {
   IMAGE_MAX_SIZE_BYTES: 5 * 1024 * 1024, // 5 MB
   VIDEO_MAX_SIZE_BYTES: 50 * 1024 * 1024, // 50 MB
-  VIDEO_MAX_DURATION_SEC: 60, // 60 seconds
+  VIDEO_MAX_DURATION_SEC: 300, // 5 minutes (300 seconds)
   AUDIO_MAX_SIZE_BYTES: 20 * 1024 * 1024, // 20 MB
   AUDIO_MAX_DURATION_SEC: 600, // 10 minutes
 };
@@ -113,7 +113,7 @@ export async function validateAndProcessVideo(file: File): Promise<ValidationRes
       if (duration > MEDIA_LIMITS.VIDEO_MAX_DURATION_SEC) {
         resolve({
           valid: false,
-          error: `Video duration is ${duration}s, which exceeds the 60-second limit.`,
+          error: `Video duration is ${duration}s, which exceeds the 5-minute (300-second) limit.`,
           duration,
         });
         return;
@@ -262,3 +262,16 @@ function writeString(view: DataView, offset: number, string: string) {
     view.setUint8(offset + i, string.charCodeAt(i));
   }
 }
+
+/**
+ * Convert any file (video, image, audio) to Data URL for durable local storage
+ */
+export function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read file into data URL'));
+    reader.readAsDataURL(file);
+  });
+}
+

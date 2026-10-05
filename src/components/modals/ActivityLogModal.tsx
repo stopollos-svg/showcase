@@ -1,15 +1,27 @@
 import React, { useState } from 'react';
-import { X, History, ChevronDown, ChevronRight, ShieldCheck, Database, Clock } from 'lucide-react';
+import { X, History, ChevronDown, ChevronRight, ShieldCheck, Database, Clock, RotateCcw } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ActivityLog } from '../../types';
 
 export const ActivityLogModal: React.FC = () => {
-  const { isActivityLogModalOpen, setActivityLogModalOpen, getActivityLogs } = useApp();
+  const { isActivityLogModalOpen, setActivityLogModalOpen, getActivityLogs, restoreContent, currentUser } = useApp();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   if (!isActivityLogModalOpen) return null;
 
   const logs = getActivityLogs();
+
+  const handleRestore = async (contentType: 'post' | 'comment', contentId: string) => {
+    try {
+      setRestoringId(contentId);
+      await restoreContent(contentType, contentId);
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setRestoringId(null);
+    }
+  };
 
   const getActionColor = (action: string) => {
     switch (action) {
@@ -109,11 +121,35 @@ export const ActivityLogModal: React.FC = () => {
                       </div>
                     </div>
 
-                    {hasDiff && (
-                      <div className="text-stone-400">
-                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Restore Action for user-deleted posts/comments */}
+                      {(log.action === 'post_deleted' ||
+                        log.action === 'comment_deleted' ||
+                        log.action === 'post_soft_deleted' ||
+                        log.action === 'comment_soft_deleted') &&
+                        currentUser?.id === log.user_id && (
+                          <button
+                            type="button"
+                            disabled={restoringId === log.entity_id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const cType = log.entity_type.startsWith('comment') ? 'comment' : 'post';
+                              handleRestore(cType, log.entity_id);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-[11px] shadow-2xs transition flex items-center gap-1 active:scale-95"
+                            title="Recover this content within its 30-day retention window"
+                          >
+                            <RotateCcw className={`w-3 h-3 ${restoringId === log.entity_id ? 'animate-spin' : ''}`} />
+                            <span>{restoringId === log.entity_id ? 'Restoring...' : 'Restore'}</span>
+                          </button>
+                        )}
+
+                      {hasDiff && (
+                        <div className="text-stone-400">
+                          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Expandable JSON Snapshot View */}

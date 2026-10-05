@@ -15,6 +15,10 @@ import {
   ShieldCheck,
   Eye,
   Flame,
+  Coins,
+  MapPin,
+  Star,
+  ExternalLink,
 } from 'lucide-react';
 import { Post } from '../../types';
 import { useApp } from '../../context/AppContext';
@@ -22,6 +26,7 @@ import { VideoPlayer } from './VideoPlayer';
 import { AudioPlayer } from './AudioPlayer';
 import { CommentSection } from './CommentSection';
 import { viewTracker } from '../../lib/viewTracker';
+import { formatDistance } from '../../lib/locationData';
 
 interface PostCardProps {
   post: Post;
@@ -35,9 +40,12 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onEdit, onReport }) =>
     followUser,
     unfollowUser,
     deletePost,
+    togglePostLike,
     blockUser,
     viewProfile,
     openChatWithUser,
+    openAuthModal,
+    recordTransaction,
     showToast,
   } = useApp();
 
@@ -68,13 +76,21 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onEdit, onReport }) =>
   const author = post.user;
   const isOwner = currentUser?.id === post.user_id;
 
-  const handleLike = () => {
-    if (isLiked) {
-      setIsLiked(false);
-      setLikesCount((prev) => Math.max(0, prev - 1));
-    } else {
-      setIsLiked(true);
-      setLikesCount((prev) => prev + 1);
+  const handleLike = async () => {
+    if (!currentUser) {
+      showToast('Please sign in to like showcases', 'info');
+      return;
+    }
+    const nextLiked = !isLiked;
+    setIsLiked(nextLiked);
+    setLikesCount((prev) => (nextLiked ? prev + 1 : Math.max(0, prev - 1)));
+    try {
+      const res = await togglePostLike(post.id);
+      setIsLiked(res.isLiked);
+      setLikesCount(res.likesCount);
+    } catch (err: any) {
+      setIsLiked(!nextLiked);
+      setLikesCount((prev) => (!nextLiked ? prev + 1 : Math.max(0, prev - 1)));
     }
   };
 
@@ -102,13 +118,94 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onEdit, onReport }) =>
     setIsMenuOpen(false);
   };
 
-  const handleShare = () => {
-    const url = window.location.href;
+  const handleShare = async () => {
+    const url = `${window.location.origin}?post=${post.id}`;
+    const shareData = {
+      title: `${author?.business_name || 'Artisan Showcase'} on Amapati`,
+      text: post.caption ? `${post.caption.slice(0, 100)}...` : `Discover local artisanal craft on Amapati`,
+      url: url,
+    };
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+      }
+    }
+
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(url);
       setIsCopied(true);
-      showToast('Showcase link copied to clipboard!');
+      showToast('Showcase link copied to clipboard!', 'success');
       setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
+
+  const renderFormattedCaption = (text: string) => {
+    // Regex splits by URLs
+    const urlPattern = /(https?:\/\/[^\s]+)/g;
+    const parts = text.split(urlPattern);
+
+    return parts.map((part, index) => {
+      if (part.match(urlPattern)) {
+        return (
+          <a
+            key={index}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-orange-600 hover:text-orange-700 underline font-medium inline-flex items-center gap-0.5 mx-0.5 break-all"
+          >
+            <span>{part.replace(/^https?:\/\/(www\.)?/, '').slice(0, 32)}{part.length > 38 ? '…' : ''}</span>
+            <ExternalLink className="w-2.5 h-2.5 inline shrink-0" />
+          </a>
+        );
+      }
+
+      // Format hashtags
+      const hashPattern = /(#[a-zA-Z0-9_\u0080-\uFFFF]+)/g;
+      const subParts = part.split(hashPattern);
+      return subParts.map((sub, sIdx) => {
+        if (sub.match(hashPattern)) {
+          return (
+            <span
+              key={`${index}-${sIdx}`}
+              className="text-orange-600 font-semibold hover:underline"
+            >
+              {sub}
+            </span>
+          );
+        }
+        return sub;
+      });
+    });
+  };
+
+  const handleQuickSupport = async () => {
+    if (!author) return;
+    if (!currentUser) {
+      openAuthModal();
+      return;
+    }
+    try {
+      const title = post.caption ? `${post.caption.slice(0, 35)}...` : `Artisan Craft Order`;
+      await recordTransaction({
+        buyer_id: currentUser.id,
+        seller_id: author.id,
+        item_type: 'craft_order',
+        item_title: title,
+        post_id: post.id,
+        amount_cents: 3500, // $35.00
+        payment_method: 'credit_card',
+        status: 'settled',
+        notes: `Direct purchase from post #${post.id}`,
+      });
+      showToast(`Order for $35.00 placed with ${author.business_name}! Recorded in ledger.`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Transaction failed', 'error');
     }
   };
 
@@ -154,7 +251,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onEdit, onReport }) =>
               )}
             </h3>
             {/* Metadata with Typographic Separator & Trending Badge */}
-            <div className="flex items-center gap-1.5 text-xs text-stone-500 font-normal flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs text-stone-500 font-normal flex-wrap mt-0.5">
               <span className="truncate">{author?.category || 'Craft'}</span>
               <span aria-hidden="true">·</span>
               <span className="whitespace-nowrap">{formatRelativeTime(post.created_at)}</span>
@@ -170,7 +267,37 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onEdit, onReport }) =>
                   </span>
                 </>
               )}
+              {author?.rating !== undefined && author.rating > 0 && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span
+                    className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-200"
+                    title={`Rating: ${author.rating.toFixed(1)} from ${author.review_count || 0} reviews`}
+                  >
+                    <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500" />
+                    <span>{author.rating.toFixed(1)}</span>
+                    {author.review_count !== undefined && author.review_count > 0 && (
+                      <span className="text-[9px] text-amber-700/80 font-normal">({author.review_count})</span>
+                    )}
+                  </span>
+                </>
+              )}
             </div>
+
+            {/* Location & Distance Badge */}
+            {(post.location || author?.location || post.distance_km !== undefined || author?.distance_km !== undefined) && (
+              <div className="flex items-center gap-1 text-[11px] text-emerald-800 font-medium mt-1">
+                <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                <span className="truncate max-w-[200px]">
+                  {post.location || author?.location || author?.city}
+                </span>
+                {(post.distance_km !== undefined || author?.distance_km !== undefined) && (
+                  <span className="font-semibold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.2 rounded text-[10px]">
+                    {formatDistance(post.distance_km ?? author?.distance_km)}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </button>
 
@@ -346,14 +473,24 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onEdit, onReport }) =>
         {/* Direct Action Buttons: Message and Phone */}
         <div className="flex items-center gap-2">
           {!isOwner && author && (
-            <button
-              onClick={() => openChatWithUser(author.id)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold transition active:scale-95"
-              title={`Direct message ${author.business_name}`}
-            >
-              <MessageCircle className="w-3.5 h-3.5 text-orange-600" />
-              <span className="hidden sm:inline">Chat</span>
-            </button>
+            <>
+              <button
+                onClick={handleQuickSupport}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 text-xs font-semibold transition active:scale-95 shadow-2xs"
+                title="Purchase or support artisan (records into PostgreSQL ledger)"
+              >
+                <Coins className="w-3.5 h-3.5 text-orange-600" />
+                <span>Support ($)</span>
+              </button>
+              <button
+                onClick={() => openChatWithUser(author.id)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800 text-xs font-semibold transition active:scale-95"
+                title={`Direct message ${author.business_name}`}
+              >
+                <MessageCircle className="w-3.5 h-3.5 text-orange-600" />
+                <span className="hidden sm:inline">Chat</span>
+              </button>
+            </>
           )}
 
           {author?.contact && (
@@ -389,7 +526,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onEdit, onReport }) =>
                 <ShieldCheck className="w-3 h-3 text-blue-600 inline fill-blue-100" />
               )}
             </strong>
-            {post.caption}
+            {renderFormattedCaption(post.caption)}
           </p>
         </div>
       )}
