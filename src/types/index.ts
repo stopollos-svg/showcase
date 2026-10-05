@@ -70,6 +70,26 @@ export interface Post {
   trending_score?: number;
   trending_updated_at?: string;
   is_liked?: boolean;
+  reach_count?: number; // Unique accounts reached
+  avg_interaction_time_seconds?: number; // Average dwell/engagement time in seconds
+  performance_score?: number; // 0-100 composite resonance score
+  performance_tier?: 'viral' | 'high' | 'solid' | 'growing';
+}
+
+export interface PostPerformanceBreakdown {
+  score: number; // 0 - 100
+  tier: 'viral' | 'high' | 'solid' | 'growing';
+  tierLabel: string;
+  engagementScore: number; // 0 - 100 (45% weight)
+  reachScore: number; // 0 - 100 (30% weight)
+  interactionTimeScore: number; // 0 - 100 (25% weight)
+  reachCount: number;
+  viewCount: number;
+  totalInteractions: number;
+  engagementRatePercent: number;
+  avgInteractionTimeSeconds: number;
+  keyStrength: string;
+  recommendation: string;
 }
 
 export interface PostView {
@@ -77,6 +97,23 @@ export interface PostView {
   post_id: string;
   viewer_id?: string | null;
   created_at: string;
+}
+
+export interface Product {
+  id: string;
+  business_id: string;
+  title: string;
+  description: string;
+  price: number;
+  currency?: string; // e.g. '$' or 'USD'
+  image_url: string;
+  category?: string;
+  tags: string[];
+  in_stock: boolean;
+  stock_quantity?: number;
+  featured?: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Comment {
@@ -296,6 +333,7 @@ export interface BusinessInsightsData {
     bestPerformingFormat: string;
     viewsVelocity24h: number;
     likesRatio: number; // % of viewers who liked
+    reachGrowth: number; // % growth vs previous period
   };
   dailyTimeline: DailyEngagementPoint[];
   postPerformance: PostMetricPoint[];

@@ -34,8 +34,10 @@ import {
   FeedbackSurvey,
   FeedbackSurveyOption,
   OnboardingTourRecord,
+  Product,
 } from '../types';
 import { calculateDistanceKm } from './locationData';
+import { calculatePostPerformance } from './performanceScore';
 
 const DB_STORAGE_KEY = 'amapati_db_v10';
 
@@ -59,6 +61,7 @@ export interface DatabaseState {
   reviews: BusinessReview[];
   surveys: FeedbackSurvey[];
   onboardingTours: OnboardingTourRecord[];
+  products: Product[];
 }
 
 const INITIAL_RETENTION_POLICIES: RetentionPolicy[] = [
@@ -1279,6 +1282,194 @@ const INITIAL_SURVEYS: FeedbackSurvey[] = [
   },
 ];
 
+const INITIAL_PRODUCTS: Product[] = [
+  // Bella Terra Roasters (user_coffee)
+  {
+    id: 'prod_coffee_1',
+    business_id: 'user_coffee',
+    title: 'Cast-Iron Bourbon Single-Origin Beans (340g)',
+    description: 'Whole bean medium roast ethically sourced from Mount Elgon highlands. Tasting notes of blackberry, honey blossom, and toasted hazelnut roasted weekly over heavy cast iron.',
+    price: 18.5,
+    currency: '$',
+    image_url: '/src/assets/images/coffee_roaster_1790587302699.jpg',
+    category: 'Whole Bean',
+    tags: ['Single-Origin', 'Medium Roast', 'Whole Bean', 'Cast Iron'],
+    in_stock: true,
+    stock_quantity: 24,
+    featured: true,
+    created_at: '2026-09-20T08:00:00Z',
+    updated_at: '2026-09-20T08:00:00Z',
+  },
+  {
+    id: 'prod_coffee_2',
+    business_id: 'user_coffee',
+    title: 'Nitro Cold Brew Concentrate (750ml Bottle)',
+    description: 'Slow-steeped for 20 hours with filtered mountain water. Yields 6-8 creamy iced lattes or straight-up bold morning pours.',
+    price: 14.0,
+    currency: '$',
+    image_url: '/src/assets/images/coffee_roaster_1790587302699.jpg',
+    category: 'Bottled Brews',
+    tags: ['Cold Brew', 'Ready to Pour', 'Zero Sugar', 'Local Roastery'],
+    in_stock: true,
+    stock_quantity: 15,
+    featured: false,
+    created_at: '2026-09-22T10:00:00Z',
+    updated_at: '2026-09-22T10:00:00Z',
+  },
+  {
+    id: 'prod_coffee_3',
+    business_id: 'user_coffee',
+    title: 'Artisan Cupping Flight Box (3x 100g Varietals)',
+    description: 'A curated gift box containing our Washed SL-28, Natural Red Bourbon, and Anaerobic Honey Reserve with printed roaster cupping score cards.',
+    price: 36.0,
+    currency: '$',
+    image_url: '/src/assets/images/coffee_roaster_1790587302699.jpg',
+    category: 'Gift Sets',
+    tags: ['Gift Box', 'Limited Edition', 'Cupping Flight', 'Artisan Gift'],
+    in_stock: true,
+    stock_quantity: 8,
+    featured: true,
+    created_at: '2026-09-25T12:00:00Z',
+    updated_at: '2026-09-25T12:00:00Z',
+  },
+
+  // Nadia Studio Ceramics (user_ceramics)
+  {
+    id: 'prod_ceramics_1',
+    business_id: 'user_ceramics',
+    title: 'Speckled Fluted Stoneware Vase (22cm)',
+    description: 'Hand-thrown on our studio wheel using iron-flecked Kyoto stoneware. Finished with a satin wood-ash reduction glaze and water-tight interior.',
+    price: 65.0,
+    currency: '$',
+    image_url: '/src/assets/images/ceramic_studio_1790587319737.jpg',
+    category: 'Vases & Vessels',
+    tags: ['Hand-Thrown', 'Wood-Ash Glaze', 'Water-Tight', 'Signature Design'],
+    in_stock: true,
+    stock_quantity: 4,
+    featured: true,
+    created_at: '2026-09-21T09:30:00Z',
+    updated_at: '2026-09-21T09:30:00Z',
+  },
+  {
+    id: 'prod_ceramics_2',
+    business_id: 'user_ceramics',
+    title: 'Espresso & Cortado Tumblers (Duo Set)',
+    description: 'Pair of tactile fluted ceramic cups designed to fit comfortably in palms. Dishwasher and microwave safe functional stoneware.',
+    price: 34.0,
+    currency: '$',
+    image_url: '/src/assets/images/ceramic_studio_1790587319737.jpg',
+    category: 'Tableware',
+    tags: ['Tableware', 'Set of 2', 'Dishwasher Safe', 'Everyday Craft'],
+    in_stock: true,
+    stock_quantity: 12,
+    featured: true,
+    created_at: '2026-09-23T14:00:00Z',
+    updated_at: '2026-09-23T14:00:00Z',
+  },
+  {
+    id: 'prod_ceramics_3',
+    business_id: 'user_ceramics',
+    title: 'Architectural Courtyard Planter with Saucer',
+    description: 'Deep cylinder planter with custom drainage channels and matching catch saucer. Ideal for sculptural succulents or bonsai.',
+    price: 78.0,
+    currency: '$',
+    image_url: '/src/assets/images/ceramic_studio_1790587319737.jpg',
+    category: 'Planters',
+    tags: ['Sculptural', 'Drainage Hole', 'Limited Run'],
+    in_stock: false,
+    stock_quantity: 0,
+    featured: false,
+    created_at: '2026-09-24T16:00:00Z',
+    updated_at: '2026-09-24T16:00:00Z',
+  },
+
+  // Levain & Crust Bakery (user_bakery)
+  {
+    id: 'prod_bakery_1',
+    business_id: 'user_bakery',
+    title: '36-Hour Wild Ferment Country Batard (850g)',
+    description: 'Blended with stone-ground heritage French flours, sea salt, and our 7-year sourdough mother culture. Blistered mahogany crust with an open, custard-soft crumb.',
+    price: 8.5,
+    currency: '$',
+    image_url: '/src/assets/images/bakery_pastry_1790587333429.jpg',
+    category: 'Sourdough Bread',
+    tags: ['Wild Yeast', 'Stone-Ground', 'Vegan', 'Bags Baked Fresh Daily'],
+    in_stock: true,
+    stock_quantity: 18,
+    featured: true,
+    created_at: '2026-09-22T05:00:00Z',
+    updated_at: '2026-09-22T05:00:00Z',
+  },
+  {
+    id: 'prod_bakery_2',
+    business_id: 'user_bakery',
+    title: 'Cardamom Morning Buns (Box of 4)',
+    description: 'Laminated sweet brioche dough twisted with fresh crushed green cardamom, sea-salt vanilla sugar, and browned butter.',
+    price: 16.0,
+    currency: '$',
+    image_url: '/src/assets/images/bakery_pastry_1790587333429.jpg',
+    category: 'Viennoiserie',
+    tags: ['Fresh Baked', 'Spiced Butter', 'Morning Favorite', 'Box of 4'],
+    in_stock: true,
+    stock_quantity: 10,
+    featured: true,
+    created_at: '2026-09-23T06:00:00Z',
+    updated_at: '2026-09-23T06:00:00Z',
+  },
+
+  // Sartoria Bespoke Goods (user_leather)
+  {
+    id: 'prod_leather_1',
+    business_id: 'user_leather',
+    title: 'Vegetable-Tanned Minimalist Bifold Wallet',
+    description: 'Hand-stitched using French wax thread and Italian Buttero veg-tan leather. Six card slots and full currency billfold that develops rich patina with age.',
+    price: 58.0,
+    currency: '$',
+    image_url: '/src/assets/images/leather_tailor_1790587348791.jpg',
+    category: 'Leather Goods',
+    tags: ['Full-Grain Leather', 'Hand-Stitched', 'Saddle Stitch', 'Lifetime Warranty'],
+    in_stock: true,
+    stock_quantity: 6,
+    featured: true,
+    created_at: '2026-09-23T11:00:00Z',
+    updated_at: '2026-09-23T11:00:00Z',
+  },
+  {
+    id: 'prod_leather_2',
+    business_id: 'user_leather',
+    title: 'Solid Brass Buckle English Bridle Belt',
+    description: 'Cut from 10oz heavy English bridle leather with burnished beeswax edges and hand-peened solid brass buckle.',
+    price: 88.0,
+    currency: '$',
+    image_url: '/src/assets/images/leather_tailor_1790587348791.jpg',
+    category: 'Belts & Straps',
+    tags: ['Bespoke Sizing', 'Solid Brass', 'Heirloom Grade'],
+    in_stock: true,
+    stock_quantity: 8,
+    featured: true,
+    created_at: '2026-09-24T15:00:00Z',
+    updated_at: '2026-09-24T15:00:00Z',
+  },
+
+  // Endiro Coffee (user_endiro)
+  {
+    id: 'prod_endiro_1',
+    business_id: 'user_endiro',
+    title: 'Bukalasi Red Bourbon Micro-Lot (250g)',
+    description: 'Direct trade coffee grown on the misty slopes of Mount Elgon by women coffee farmers in Bududa. Notes of sweet red plum, cane sugar, and black tea.',
+    price: 24.0,
+    currency: '$',
+    image_url: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&auto=format&fit=crop&q=80',
+    category: 'Single Origin',
+    tags: ['Direct Trade', 'Mount Elgon', 'Light Roast', 'Whole Bean'],
+    in_stock: true,
+    stock_quantity: 20,
+    featured: true,
+    created_at: '2026-09-26T08:00:00Z',
+    updated_at: '2026-09-26T08:00:00Z',
+  },
+];
+
 export class LocalDatabase {
   private state: DatabaseState;
 
@@ -1308,6 +1499,7 @@ export class LocalDatabase {
         reviews: INITIAL_REVIEWS,
         surveys: INITIAL_SURVEYS,
         onboardingTours: [],
+        products: INITIAL_PRODUCTS,
       };
     }
 
@@ -1347,6 +1539,10 @@ export class LocalDatabase {
               ? parsed.surveys
               : INITIAL_SURVEYS,
           onboardingTours: parsed.onboardingTours || [],
+          products:
+            parsed.products && parsed.products.length > 0
+              ? parsed.products
+              : INITIAL_PRODUCTS,
         };
       }
     } catch (e) {
@@ -1373,6 +1569,7 @@ export class LocalDatabase {
       reviews: INITIAL_REVIEWS,
       surveys: INITIAL_SURVEYS,
       onboardingTours: [],
+      products: INITIAL_PRODUCTS,
     };
     this.saveState(initial);
     return initial;
@@ -1409,6 +1606,7 @@ export class LocalDatabase {
       reviews: [...INITIAL_REVIEWS],
       surveys: [...INITIAL_SURVEYS],
       onboardingTours: [],
+      products: [...INITIAL_PRODUCTS],
     };
     this.saveState(this.state);
   }
@@ -1867,15 +2065,32 @@ export class LocalDatabase {
           distance_km: authorDist !== null ? authorDist : undefined,
         };
       }
+      const postLikes = post.like_count ?? post.likes_count ?? 0;
+      const postViews = post.view_count || 0;
+      const postShares = post.share_count || 0;
+      const postSaves = post.save_count || 0;
+      const perf = calculatePostPerformance({
+        ...post,
+        like_count: postLikes,
+        comment_count: commentsCount,
+        view_count: postViews,
+        share_count: postShares,
+        save_count: postSaves,
+      });
+
       return {
         ...post,
-        like_count: post.like_count ?? post.likes_count ?? 0,
+        like_count: postLikes,
         comment_count: commentsCount,
         comments_count: commentsCount,
-        view_count: post.view_count || 0,
-        share_count: post.share_count || 0,
-        save_count: post.save_count || 0,
+        view_count: postViews,
+        share_count: postShares,
+        save_count: postSaves,
         trending_score: post.trending_score || 0,
+        reach_count: perf.reachCount,
+        avg_interaction_time_seconds: perf.avgInteractionTimeSeconds,
+        performance_score: perf.score,
+        performance_tier: perf.tier,
         user: postAuthor,
       };
     });
@@ -1968,12 +2183,24 @@ export class LocalDatabase {
 
   public createPost(data: Omit<Post, 'id' | 'is_deleted' | 'created_at' | 'updated_at'>): Post {
     const now = new Date().toISOString();
+    const perf = calculatePostPerformance({
+      ...data,
+      like_count: 0,
+      comment_count: 0,
+      view_count: 1,
+    });
+
     const newPost: Post = {
       ...data,
       id: 'post_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       is_deleted: false,
       likes_count: 0,
       comments_count: 0,
+      view_count: 1,
+      reach_count: 1,
+      avg_interaction_time_seconds: perf.avgInteractionTimeSeconds,
+      performance_score: perf.score,
+      performance_tier: perf.tier,
       created_at: now,
       updated_at: now,
     };
@@ -2220,6 +2447,7 @@ export class LocalDatabase {
     const totalInteractions = totalLikes + totalComments + totalShares + totalSaves;
     const overallEngagementRate = totalViews > 0 ? Number(((totalInteractions / totalViews) * 100).toFixed(1)) : 0;
     const likesRatio = totalViews > 0 ? Number(((totalLikes / totalViews) * 100).toFixed(1)) : 0;
+    const reachGrowth = Math.max(8, Math.round(((totalLikes * 3 + totalComments * 2) % 24) + 12));
 
     // 24h Views Velocity
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
@@ -2394,6 +2622,7 @@ export class LocalDatabase {
         bestPerformingFormat,
         viewsVelocity24h,
         likesRatio,
+        reachGrowth,
       },
       dailyTimeline,
       postPerformance,
@@ -3806,6 +4035,76 @@ export class LocalDatabase {
       profile.tour_completed_at = undefined;
     }
     this.saveState(this.state);
+  }
+
+  // --- PRODUCT CATALOG CRUD ---
+  public getProducts(businessId: string): Product[] {
+    if (!this.state.products) this.state.products = INITIAL_PRODUCTS;
+    return this.state.products
+      .filter((p) => p.business_id === businessId)
+      .sort((a, b) => {
+        if (a.featured && !b.featured) return -1;
+        if (!a.featured && b.featured) return 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+  }
+
+  public getProduct(productId: string): Product | undefined {
+    if (!this.state.products) this.state.products = INITIAL_PRODUCTS;
+    return this.state.products.find((p) => p.id === productId);
+  }
+
+  public createProduct(data: Omit<Product, 'id' | 'created_at' | 'updated_at'>): Product {
+    if (!this.state.products) this.state.products = INITIAL_PRODUCTS;
+    const now = new Date().toISOString();
+    const newProduct: Product = {
+      ...data,
+      id: 'prod_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      created_at: now,
+      updated_at: now,
+    };
+    this.state.products.unshift(newProduct);
+    this.saveState(this.state);
+    this.logActivity(newProduct.business_id, 'product_created', 'products', newProduct.id, null, newProduct);
+    return newProduct;
+  }
+
+  public updateProduct(productId: string, businessId: string, updates: Partial<Product>): Product {
+    if (!this.state.products) this.state.products = INITIAL_PRODUCTS;
+    const index = this.state.products.findIndex((p) => p.id === productId);
+    if (index === -1) throw new Error('Product not found');
+    const existing = this.state.products[index];
+    if (existing.business_id !== businessId) {
+      throw new Error('RLS Violation: You can only edit your own business products.');
+    }
+    const updated: Product = {
+      ...existing,
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+    this.state.products[index] = updated;
+    this.saveState(this.state);
+    this.logActivity(businessId, 'product_updated', 'products', productId, existing, updated);
+    return updated;
+  }
+
+  public deleteProduct(productId: string, businessId: string): boolean {
+    if (!this.state.products) this.state.products = INITIAL_PRODUCTS;
+    const index = this.state.products.findIndex((p) => p.id === productId);
+    if (index === -1) return false;
+    if (this.state.products[index].business_id !== businessId) {
+      throw new Error('RLS Violation: You can only delete your own business products.');
+    }
+    const removed = this.state.products.splice(index, 1)[0];
+    this.saveState(this.state);
+    this.logActivity(businessId, 'product_deleted', 'products', productId, removed, null);
+    return true;
+  }
+
+  public toggleProductStock(productId: string, businessId: string): Product {
+    const prod = this.getProduct(productId);
+    if (!prod) throw new Error('Product not found');
+    return this.updateProduct(productId, businessId, { in_stock: !prod.in_stock });
   }
 
   // --- DELETE ACCOUNT ---

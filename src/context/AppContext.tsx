@@ -176,7 +176,7 @@ interface AppContextType {
   conversations: Conversation[];
   activeChatUserId: string | null;
   setActiveChatUserId: (userId: string | null) => void;
-  openChatWithUser: (userId: string) => void;
+  openChatWithUser: (userId: string, initialMessage?: string) => void;
   getChatMessages: (otherUserId: string) => Message[];
   sendMessage: (recipientId: string, content: string) => Promise<Message>;
   canSendMessage: (recipientId: string) => { allowed: boolean; reason?: string };
@@ -728,7 +728,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveTab('profile');
   };
 
-  const openChatWithUser = (userId: string) => {
+  const openChatWithUser = async (userId: string, initialMessage?: string) => {
     if (!currentUser) {
       setActiveTab('auth');
       showToast('Please sign in to message businesses.', 'info');
@@ -736,6 +736,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     setActiveChatUserId(userId);
     setActiveTab('messages');
+    if (initialMessage && initialMessage.trim()) {
+      try {
+        await sendMessage(userId, initialMessage.trim());
+        showToast('Inquiry sent to artisan!', 'success');
+      } catch (err: any) {
+        console.warn('Failed to send initial inquiry message:', err);
+      }
+    }
   };
 
   // Auth functions

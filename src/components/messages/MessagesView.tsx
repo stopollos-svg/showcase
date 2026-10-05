@@ -120,6 +120,58 @@ export const MessagesView: React.FC = () => {
 
   const allAvailableBusinesses = db.getAllProfiles(currentUser.id).filter((p) => p.id !== currentUser.id);
 
+  // AI-Powered Smart Replies based on last message & business inquiries
+  const smartReplies = React.useMemo(() => {
+    if (!activeChatPartner || currentChatMessages.length === 0) {
+      return [
+        'Hello! How can we assist you with our craft today?',
+        'Yes, custom orders are currently welcome!',
+        'Our studio is open Tuesday to Sunday in Kampala.',
+      ];
+    }
+
+    const lastMsg = currentChatMessages[currentChatMessages.length - 1];
+    const text = (lastMsg?.content || '').toLowerCase();
+    const isFromOther = lastMsg?.sender_id !== currentUser?.id;
+
+    if (!isFromOther) {
+      return [];
+    }
+
+    const replies: string[] = [];
+
+    if (text.includes('price') || text.includes('cost') || text.includes('how much') || text.includes('rate')) {
+      replies.push(
+        'Our craft prices start at 35,000 UGX. Would you like our complete product catalogue?',
+        'Standard batch items are $35, and custom bespoke orders are quoted on request.'
+      );
+    } else if (text.includes('available') || text.includes('stock') || text.includes('buy') || text.includes('order')) {
+      replies.push(
+        'Yes, this item is in stock and ready for immediate dispatch or workshop pickup!',
+        'We have 4 units left in this fresh batch. Shall I reserve one for you?',
+        'Yes! We can deliver anywhere in Kampala within 2 hours.'
+      );
+    } else if (text.includes('where') || text.includes('location') || text.includes('visit') || text.includes('shop')) {
+      replies.push(
+        `We are located in ${currentUser?.location || 'Kololo, Kampala'}. You are warmly welcome to visit!`,
+        'Our workshop is open today until 6:00 PM.'
+      );
+    } else if (text.includes('deliver') || text.includes('shipping') || text.includes('send')) {
+      replies.push(
+        'We offer door-to-door delivery across Kampala and Entebbe via express courier.',
+        'Yes, delivery is available! What is your preferred delivery location?'
+      );
+    } else {
+      replies.push(
+        'Thanks for reaching out! We would be delighted to coordinate on this.',
+        'Yes, we can prepare this for you right away!',
+        'Sounds wonderful! Let us know your preferred quantity or timeline.'
+      );
+    }
+
+    return replies.slice(0, 3);
+  }, [activeChatPartner, currentChatMessages, currentUser]);
+
   // Filtered active conversations by inbox search
   const filteredConversations = conversations.filter((conv) => {
     if (!inboxSearch.trim()) return true;
@@ -278,6 +330,28 @@ export const MessagesView: React.FC = () => {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* AI Smart Replies Bar */}
+        {sendEligibility.allowed && smartReplies.length > 0 && (
+          <div className="px-3 pt-2 pb-1.5 bg-stone-50 border-t border-stone-200/70">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <span className="text-[10px] font-bold text-orange-700 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-orange-600" />
+                <span>Smart Reply:</span>
+              </span>
+              {smartReplies.map((reply, rIdx) => (
+                <button
+                  key={rIdx}
+                  type="button"
+                  onClick={() => setMessageInput(reply)}
+                  className="px-2.5 py-1 rounded-xl bg-white border border-stone-200 hover:border-orange-400 hover:bg-orange-50/70 text-stone-800 text-[11px] font-medium whitespace-nowrap shadow-2xs transition active:scale-95"
+                >
+                  {reply}
+                </button>
+              ))}
             </div>
           </div>
         )}

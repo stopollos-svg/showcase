@@ -27,6 +27,7 @@ import { AudioPlayer } from './AudioPlayer';
 import { CommentSection } from './CommentSection';
 import { viewTracker } from '../../lib/viewTracker';
 import { formatDistance } from '../../lib/locationData';
+import { PerformanceScoreBadge } from '../common/PerformanceScoreBadge';
 
 interface PostCardProps {
   post: Post;
@@ -224,29 +225,39 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onEdit, onReport }) =>
     >
       {/* 1. Header Zone: Business Author & Affordances */}
       <header className="p-4 flex items-center justify-between gap-3 border-b border-stone-100">
-        <button
-          onClick={() => author && viewProfile(author.id)}
-          className="flex items-center gap-3 text-left min-w-0 group"
-        >
-          {author?.avatar_url ? (
-            <img
-              src={author.avatar_url}
-              alt={author.business_name}
-              referrerPolicy="no-referrer"
-              className="w-10 h-10 rounded-full object-cover border border-stone-200 group-hover:ring-2 group-hover:ring-orange-200 transition shrink-0"
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center font-bold text-sm shrink-0">
-              {author?.business_name ? author.business_name[0] : 'B'}
-            </div>
-          )}
+        <div className="flex items-center gap-3 text-left min-w-0">
+          <button
+            type="button"
+            onClick={() => author && viewProfile(author.id)}
+            className="group shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500"
+            title={`View ${author?.business_name || 'Artisan'}'s profile`}
+          >
+            {author?.avatar_url ? (
+              <img
+                src={author.avatar_url}
+                alt={author.business_name}
+                referrerPolicy="no-referrer"
+                className="w-10 h-10 rounded-full object-cover border border-stone-200 group-hover:ring-2 group-hover:ring-orange-200 transition shrink-0"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center font-bold text-sm shrink-0">
+                {author?.business_name ? author.business_name[0] : 'B'}
+              </div>
+            )}
+          </button>
 
           <div className="min-w-0">
-            <h3 className="text-sm font-bold text-stone-900 truncate group-hover:text-orange-600 transition-colors flex items-center gap-1">
-              <span>{author?.business_name || 'Artisan Business'}</span>
+            <h3 className="text-sm font-bold text-stone-900 truncate flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => author && viewProfile(author.id)}
+                className="hover:text-orange-600 transition-colors truncate text-left focus:outline-none"
+              >
+                {author?.business_name || 'Artisan Business'}
+              </button>
               {author?.is_verified && (
                 <span title="Verified Business">
-                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 inline fill-blue-100" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-blue-600 inline fill-blue-100 shrink-0" />
                 </span>
               )}
             </h3>
@@ -282,6 +293,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onEdit, onReport }) =>
                   </span>
                 </>
               )}
+              <span aria-hidden="true">·</span>
+              <PerformanceScoreBadge
+                post={{
+                  ...post,
+                  like_count: likesCount,
+                  comment_count: commentsCount,
+                  view_count: viewCount,
+                }}
+                variant="mini"
+              />
             </div>
 
             {/* Location & Distance Badge */}
@@ -299,7 +320,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onEdit, onReport }) =>
               </div>
             )}
           </div>
-        </button>
+        </div>
 
         {/* Header Right Actions */}
         <div className="flex items-center gap-1">
@@ -458,6 +479,17 @@ export const PostCard: React.FC<PostCardProps> = ({ post, onEdit, onReport }) =>
             <Eye className="w-4 h-4 text-stone-400" />
             <span className="tabular-nums font-mono">{viewCount}</span>
           </div>
+
+          {/* 0-100 Content Resonance Performance Score */}
+          <PerformanceScoreBadge
+            post={{
+              ...post,
+              like_count: likesCount,
+              comment_count: commentsCount,
+              view_count: viewCount,
+            }}
+            variant="compact"
+          />
 
           {/* Share Button */}
           <button

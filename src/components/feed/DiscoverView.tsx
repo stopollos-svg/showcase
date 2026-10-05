@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Search,
   X,
@@ -103,6 +103,66 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ onEditPost, onReport
       return ['coffee', 'Kololo', 'tilapia', 'events'];
     }
   });
+
+  // AI-Powered Trending Now analysis from recent popular posts and hashtags
+  const aiTrendingTags = useMemo(() => {
+    const counts: Record<string, { count: number; category?: string; emoji: string }> = {};
+    const defaultTrending = [
+      { tag: '#SpecialtyCoffee', emoji: '☕', category: 'coffee', count: 48 },
+      { tag: '#BugolobiPopups', emoji: '🎪', category: 'events', count: 32 },
+      { tag: '#HandThrownPottery', emoji: '🏺', category: 'crafts', count: 27 },
+      { tag: '#KampalaBites', emoji: '🍽️', category: 'restaurants', count: 21 },
+      { tag: '#ArtisanLeather', emoji: '👜', category: 'crafts', count: 18 },
+      { tag: '#SourdoughKampala', emoji: '🥐', category: 'bakery', count: 15 },
+      { tag: '#TilapiaSundowner', emoji: '🐟', category: 'restaurants', count: 14 },
+    ];
+
+    posts.forEach((p) => {
+      if (!p.caption) return;
+      const matches = p.caption.match(/#[a-zA-Z0-9_\u0080-\uFFFF]+/g);
+      if (matches) {
+        matches.forEach((m) => {
+          const lower = m.toLowerCase();
+          const clean = m;
+          const weight = (p.like_count || p.likes_count || 1) + (p.view_count ? Math.round(p.view_count / 10) : 1);
+          if (!counts[clean]) {
+            let emoji = '🔥';
+            if (lower.includes('coffee') || lower.includes('roast')) emoji = '☕';
+            else if (lower.includes('clay') || lower.includes('pottery') || lower.includes('ceramic')) emoji = '🏺';
+            else if (lower.includes('food') || lower.includes('tilapia') || lower.includes('dine')) emoji = '🍽️';
+            else if (lower.includes('event') || lower.includes('popup') || lower.includes('market')) emoji = '🎪';
+            else if (lower.includes('leather') || lower.includes('bag')) emoji = '👜';
+            counts[clean] = { count: weight, emoji, category: p.user?.category?.toLowerCase() };
+          } else {
+            counts[clean].count += weight;
+          }
+        });
+      }
+    });
+
+    const parsed = Object.entries(counts)
+      .map(([tag, meta]) => ({
+        tag,
+        cleanQuery: tag.replace(/^#/, ''),
+        emoji: meta.emoji,
+        category: meta.category,
+        count: meta.count,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+
+    if (parsed.length >= 4) {
+      return parsed;
+    }
+
+    return defaultTrending.map((t) => ({
+      tag: t.tag,
+      cleanQuery: t.tag.replace(/^#/, ''),
+      emoji: t.emoji,
+      category: t.category,
+      count: t.count,
+    }));
+  }, [posts]);
 
   const saveRecentSearch = (term: string) => {
     const clean = term.trim();
@@ -644,6 +704,60 @@ export const DiscoverView: React.FC<DiscoverViewProps> = ({ onEditPost, onReport
                 }`}
               >
                 {cat.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* AI Trending Now Pill Section */}
+      <div className="mb-4 bg-gradient-to-r from-orange-50/90 via-amber-50/60 to-orange-50/90 border border-orange-200/80 rounded-2xl p-3 shadow-2xs">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-1.5">
+            <span className="p-1 rounded-lg bg-orange-600 text-white shadow-2xs">
+              <Flame className="w-3.5 h-3.5" />
+            </span>
+            <span className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+              <span>Trending Now</span>
+              <span className="text-[10px] font-bold text-orange-700 bg-orange-100/80 px-1.5 py-0.2 rounded-md border border-orange-200/60 inline-flex items-center gap-0.5">
+                <Sparkles className="w-2.5 h-2.5" />
+                AI Analyzed
+              </span>
+            </span>
+          </div>
+          <span className="text-[10px] text-stone-400 font-mono">Popularity Ranking</span>
+        </div>
+
+        {/* Clickable pill-shaped buttons to filter the feed */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          {aiTrendingTags.map((trend, idx) => {
+            const isFilterActive =
+              searchQuery.toLowerCase().includes(trend.cleanQuery.toLowerCase()) ||
+              (trend.category && selectedCategory === trend.category);
+
+            return (
+              <button
+                key={idx}
+                onClick={() => {
+                  if (isFilterActive) {
+                    setSearchQuery('');
+                  } else {
+                    setSearchQuery(trend.cleanQuery);
+                    if (trend.category) setSelectedCategory(trend.category);
+                    saveRecentSearch(trend.cleanQuery);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition active:scale-95 flex items-center gap-1.5 border shadow-2xs ${
+                  isFilterActive
+                    ? 'bg-orange-600 text-white border-orange-600 shadow-xs'
+                    : 'bg-white text-stone-800 border-orange-200/90 hover:bg-orange-100/60 hover:text-orange-950'
+                }`}
+              >
+                <span>{trend.emoji}</span>
+                <span>{trend.tag}</span>
+                <span className={`text-[10px] font-mono ${isFilterActive ? 'text-orange-200' : 'text-stone-400'}`}>
+                  ({trend.count})
+                </span>
               </button>
             );
           })}
